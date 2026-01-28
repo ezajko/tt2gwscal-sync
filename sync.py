@@ -134,6 +134,12 @@ def sync_category(args):
 
         logger.info(f"--- POČETAK BRISANJA KALENDARA: {args.calendar} ---")
 
+        if not args.force:
+            confirm = input(f"UPOZORENJE: Ovo ce trajno obrisati kalendar '{args.calendar}' za SVE korisnike u CSV-u.\nDa li ste sigurni? (y/N): ")
+            if confirm.lower() not in ['y', 'yes']:
+                logger.info("Operacija otkazana od strane korisnika.")
+                sys.exit(0)
+
         updated_count = 0
         for row in cal_rows:
             cal_id = row.get(args.calendar, '').strip()
@@ -186,6 +192,10 @@ def sync_category(args):
         fieldnames.append(args.calendar)
 
     json_path = os.path.join(JSON_DIR, args.events)
+    if not os.path.exists(json_path):
+        logger.error(f"GRESKA: Fajl sa dogadjajima nije pronadjen: {json_path}")
+        sys.exit(1)
+
     with open(json_path, 'r', encoding='utf-8') as f:
         events_data = json.load(f)
 
@@ -296,6 +306,7 @@ if __name__ == "__main__":
     parser.add_argument('--events', required=False, help="JSON fajl sa događajima.")
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--delete-calendar', action='store_true', help="Trajno briše navedeni kalendar za sve korisnike.")
+    parser.add_argument('--force', action='store_true', help="Preskace sigurnosnu provjeru za brisanje (koristiti oprezno).")
     parser.add_argument('--list-calendars', action='store_true', help="Izlistava sve aktivne kalendare u CSV fajlu.")
     parser.add_argument('--verbose', action='store_true', help="Prikazuje detaljne informacije (npr. listu korisnika uz --list-calendars).")
     parser.add_argument('--init', action='store_true', help="Inicijalizuje strukturu direktorija i prazne CSV fajlove.")
