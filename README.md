@@ -1,8 +1,8 @@
-# GWS Sync (Google Workspace Sync)
+# TimeTable (events) to GWS (Google Workspace) Calendar Sync
 
 Ovaj alat služi za sinhronizaciju rasporeda nastave (ili drugih događaja) iz JSON formata u Google Kalendare korisnika, koristeći Google Workspace (Service Account) integraciju.
 
-## 🚀 Instalacija i Priprema
+## Instalacija i Priprema
 
 1.  **Python Okruženje:**
     Potreban je Python 3. Preporučuje se korištenje virtualnog okruženja.
@@ -69,7 +69,7 @@ Ovaj alat služi za sinhronizaciju rasporeda nastave (ili drugih događaja) iz J
 
    *Napomena: Propagacija ovih prava može potrajati nekoliko minuta.*
 
-## 📂 Struktura Podataka
+## Struktura Podataka
 
 Alat koristi CSV fajlove za mapiranje podataka i JSON fajl za definiciju događaja.
 
@@ -108,7 +108,7 @@ Fajl je niz (array) objekata, gdje svaki objekat predstavlja jedan termin.
 
 **Polje `dodatne_osobe`:**
 Lista stringova koja definiše goste na događaju. Svaki element može biti:
-*   **Direktna email adresa:** (npr. `"kolega@etf.unsa.ba"`)
+*   **Direktna email adresa:** (npr. `"kolega@dom.example.org"`)
 *   **Ime i prezime:** (npr. `"Drugi Kolega"`) - U ovom slučaju, skripta traži to ime u fajlu `person.csv` i koristi pripadajući `google_id` (email).
 
 **Objekat `ponavljanje`:**
@@ -140,12 +140,12 @@ Lista stringova koja definiše goste na događaju. Svaki element može biti:
     "datum": "2026-02-20",
     "vrijeme_start": "13:00",
     "vrijeme_kraj": "14:00",
-    "dodatne_osobe": ["kolega@etf.unsa.ba", "Drugi Kolega"]
+    "dodatne_osobe": ["kolega@dom.example.org", "Drugi Kolega"]
   }
 ]
 ```
 
-## 🛠 Korištenje
+## Korištenje
 
 Za lakše pokretanje koristi se skripta `./gws` koja automatski aktivira virtualno okruženje.
 
@@ -216,7 +216,11 @@ Pretpostavimo da želimo sinhronizovati raspored za zimski semestar pod nazivom 
    ./gws --list-calendars --calendar "XYZ Time Table: 2025/2026 WS"
    ```
 
-## 📄 Licenca
+## Licenca
 
 Ovaj projekat je otvorenog koda i licenciran pod **GNU General Public License v2.0 or later (GPL-2.0+)**.
 Pogledajte fajl `LICENSE` za više detalja.
+
+## Autor
+
+**Ernedin Zajko** <ezajko@root.ba>

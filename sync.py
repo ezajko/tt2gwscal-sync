@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+#
+# Author: Ernedin Zajko <ezajko@root.ba>
+# License: GNU General Public License v2.0 or later (GPL-2.0+)
+#
+
 import argparse
 import csv
 import json
