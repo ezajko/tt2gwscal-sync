@@ -299,6 +299,11 @@ if __name__ == "__main__":
     parser.add_argument('--list-calendars', action='store_true', help="Izlistava sve aktivne kalendare u CSV fajlu.")
     parser.add_argument('--verbose', action='store_true', help="Prikazuje detaljne informacije (npr. listu korisnika uz --list-calendars).")
     parser.add_argument('--init', action='store_true', help="Inicijalizuje strukturu direktorija i prazne CSV fajlove.")
+
+    if len(sys.argv) == 1:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+
     args = parser.parse_args()
 
     # INIT COMMAND
