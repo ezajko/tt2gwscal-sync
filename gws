@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Odredi direktorij u kojem se nalazi skripta
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Provjeri da li postoji virtualno okruženje
+if [ ! -d "$DIR/venv" ]; then
+    echo "Virtual environment (venv) nije pronađen."
+    echo "Molimo prvo instalirajte zavisnosti (pogledajte README.md)."
+    exit 1
+fi
+
+# Aktiviraj venv
+source "$DIR/venv/bin/activate"
+
+# Pokreni Python skriptu i proslijedi sve argumente
+python3 "$DIR/sync.py" "$@"
+
+# Sačuvaj exit code
+EXIT_CODE=$?
+
+# Deaktiviraj (opcionalno, ali dobra praksa)
+deactivate
+
+exit $EXIT_CODE
