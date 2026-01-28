@@ -145,34 +145,34 @@ def sync_category(args):
             if args.dry_run:
                 continue
 
-                        try:
-                            creds = service_account.Credentials.from_service_account_file(
-                                SERVICE_ACCOUNT_FILE, scopes=SCOPES, subject=user_google_id)
-                            service = build('calendar', 'v3', credentials=creds)
+            try:
+                creds = service_account.Credentials.from_service_account_file(
+                    SERVICE_ACCOUNT_FILE, scopes=SCOPES, subject=user_google_id)
+                service = build('calendar', 'v3', credentials=creds)
 
-                            service.calendars().delete(calendarId=cal_id).execute()
-                            # row[args.calendar] = '' -> Ne samo prazniti, nego ćemo ukloniti kolonu skroz kasnije
-                            updated_count += 1
-                            logger.info("   Uspješno obrisan.")
-                        except Exception as e:
-                            logger.error(f"   Greška prilikom brisanja: {e}")
+                service.calendars().delete(calendarId=cal_id).execute()
+                # row[args.calendar] = '' -> Ne samo prazniti, nego ćemo ukloniti kolonu skroz kasnije
+                updated_count += 1
+                logger.info("   Uspješno obrisan.")
+            except Exception as e:
+                logger.error(f"   Greška prilikom brisanja: {e}")
 
-                    if not args.dry_run:
-                        # Uklanjanje kolone iz zaglavlja i redova
-                        if args.calendar in fieldnames:
-                            fieldnames.remove(args.calendar)
+        if not args.dry_run:
+            # Uklanjanje kolone iz zaglavlja i redova
+            if args.calendar in fieldnames:
+                fieldnames.remove(args.calendar)
 
-                        for row in cal_rows:
-                            if args.calendar in row:
-                                del row[args.calendar]
+            for row in cal_rows:
+                if args.calendar in row:
+                    del row[args.calendar]
 
-                        with open(FILE_CALENDARS, mode='w', encoding='utf-8', newline='') as f:
-                            writer = csv.DictWriter(f, fieldnames=fieldnames, quotechar='"', quoting=csv.QUOTE_MINIMAL)
-                            writer.writeheader()
-                            writer.writerows(cal_rows)
-                        logger.info(f"Ažuriran {FILE_CALENDARS}. Kolona '{args.calendar}' potpuno uklonjena.")
+            with open(FILE_CALENDARS, mode='w', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames, quotechar='"', quoting=csv.QUOTE_MINIMAL)
+                writer.writeheader()
+                writer.writerows(cal_rows)
+            logger.info(f"Ažuriran {FILE_CALENDARS}. Kolona '{args.calendar}' potpuno uklonjena.")
 
-                    return # Kraj za delete mode
+        return # Kraj za delete mode
     # --- Nastavak standardne sync logike ---
     rooms = {row['room']: row['google_id'] for row in csv.DictReader(open(FILE_ROOMS, encoding='utf-8'), quotechar='"') if row.get('room') and not row['room'].startswith('//')}
     types = {row['mark']: row for row in csv.DictReader(open(FILE_TYPES, encoding='utf-8'), quotechar='"')}
@@ -291,116 +291,117 @@ def sync_category(args):
             writer.writerows(cal_rows)
 
 if __name__ == "__main__":
-        parser = argparse.ArgumentParser()
-        parser.add_argument('--calendar', required=False, help="Naziv kalendara (kolona u CSV-u).")
-        parser.add_argument('--events', required=False, help="JSON fajl sa događajima.")
-        parser.add_argument('--dry-run', action='store_true')
-        parser.add_argument('--delete-calendar', action='store_true', help="Trajno briše navedeni kalendar za sve korisnike.")
-            parser.add_argument('--list-calendars', action='store_true', help="Izlistava sve aktivne kalendare u CSV fajlu.")
-            parser.add_argument('--verbose', action='store_true', help="Prikazuje detaljne informacije (npr. listu korisnika uz --list-calendars).")
-            parser.add_argument('--init', action='store_true', help="Inicijalizuje strukturu direktorija i prazne CSV fajlove.")
-            args = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--calendar', required=False, help="Naziv kalendara (kolona u CSV-u).")
+    parser.add_argument('--events', required=False, help="JSON fajl sa događajima.")
+    parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--delete-calendar', action='store_true', help="Trajno briše navedeni kalendar za sve korisnike.")
+    parser.add_argument('--list-calendars', action='store_true', help="Izlistava sve aktivne kalendare u CSV fajlu.")
+    parser.add_argument('--verbose', action='store_true', help="Prikazuje detaljne informacije (npr. listu korisnika uz --list-calendars).")
+    parser.add_argument('--init', action='store_true', help="Inicijalizuje strukturu direktorija i prazne CSV fajlove.")
+    args = parser.parse_args()
 
-            # INIT COMMAND
-            if args.init:
-                print("--- Inicijalizacija GWS Sync Projekta ---")
+    # INIT COMMAND
+    if args.init:
+        print("--- Inicijalizacija GWS Sync Projekta ---")
 
-                # 1. Kreiranje direktorija
-                dirs_to_create = [CSV_DIR, LOG_DIR, AUTH_DIR, JSON_DIR]
-                for d in dirs_to_create:
-                    if not os.path.exists(d):
-                        os.makedirs(d)
-                        print(f" [OK] Kreiran direktorij: {d}/")
-                    else:
-                        print(f" [SKIP] Direktorij već postoji: {d}/")
-
-                # 2. Kreiranje CSV fajlova
-                files_def = {
-                    FILE_PERSONS: ['firstName_lastName', 'google_id'],
-                    FILE_ROOMS: ['room', 'google_id'],
-                    FILE_TYPES: ['mark', 'title', 'color', 'label'],
-                    FILE_CALENDARS: ['google_id']
-                }
-
-                for fpath, headers in files_def.items():
-                    if not os.path.exists(fpath):
-                        try:
-                            with open(fpath, mode='w', encoding='utf-8', newline='') as f:
-                                writer = csv.writer(f, quotechar='"', quoting=csv.QUOTE_MINIMAL)
-                                writer.writerow(headers)
-                            print(f" [OK] Kreiran fajl: {fpath}")
-                        except Exception as e:
-                            print(f" [ERROR] Greška pri kreiranju {fpath}: {e}")
-                    else:
-                        print(f" [SKIP] Fajl već postoji: {fpath}")
-
-                print("\nZavršeno. Molimo kopirajte vaš 'service_account.json' u 'auth/' direktorij.")
-                sys.exit(0)
-
-            # LIST COMMAND        if args.list_calendars:
-            if not os.path.exists(FILE_CALENDARS):
-                print(f"Fajl {FILE_CALENDARS} ne postoji.")
-                sys.exit(0)
-
-            with open(FILE_CALENDARS, mode='r', encoding='utf-8') as f:
-                reader = csv.DictReader(f, quotechar='"')
-                fieldnames = reader.fieldnames
-                rows = list(reader)
-
-            # Ako je naveden specifičan kalendar, filtriraj samo njega
-            if args.calendar:
-                if args.calendar not in fieldnames:
-                    print(f"Kalendar '{args.calendar}' ne postoji u sistemu.")
-                    sys.exit(1)
-                target_calendars = [args.calendar]
-                show_details = True # Ako traži specifičan, uvijek prikaži detalje
+        # 1. Kreiranje direktorija
+        dirs_to_create = [CSV_DIR, LOG_DIR, AUTH_DIR, JSON_DIR]
+        for d in dirs_to_create:
+            if not os.path.exists(d):
+                os.makedirs(d)
+                print(f" [OK] Kreiran direktorij: {d}/")
             else:
-                target_calendars = [f for f in fieldnames if f != 'google_id']
-                show_details = args.verbose
+                print(f" [SKIP] Direktorij već postoji: {d}/")
 
-            if not target_calendars:
-                print("Nema definisanih kalendara.")
+        # 2. Kreiranje CSV fajlova
+        files_def = {
+            FILE_PERSONS: ['firstName_lastName', 'google_id'],
+            FILE_ROOMS: ['room', 'google_id'],
+            FILE_TYPES: ['mark', 'title', 'color', 'label'],
+            FILE_CALENDARS: ['google_id']
+        }
+
+        for fpath, headers in files_def.items():
+            if not os.path.exists(fpath):
+                try:
+                    with open(fpath, mode='w', encoding='utf-8', newline='') as f:
+                        writer = csv.writer(f, quotechar='"', quoting=csv.QUOTE_MINIMAL)
+                        writer.writerow(headers)
+                    print(f" [OK] Kreiran fajl: {fpath}")
+                except Exception as e:
+                    print(f" [ERROR] Greška pri kreiranju {fpath}: {e}")
             else:
-                print(f"Pronađeno {len(target_calendars)} kalendara:")
+                print(f" [SKIP] Fajl već postoji: {fpath}")
 
-                # Učitavamo i imena ljudi radi ljepšeg ispisa
-                persons = {}
-                if show_details:
-                    try:
-                        persons = load_csv_to_dict(FILE_PERSONS, 'google_id') # Učitaj mapu po Google ID-u
-                        # persons je sad: {'email': {firstName_lastName: '...', ...}}
-                    except:
-                        pass # Ako faila person.csv, prikazaćemo samo emailove
+        print("\nZavršeno. Molimo kopirajte vaš 'service_account.json' u 'auth/' direktorij.")
+        sys.exit(0)
 
-                for cal in target_calendars:
-                    active_users = [r for r in rows if r.get(cal, '').strip()]
-                    print(f"\nKalendar: '{cal}' (aktivno kod {len(active_users)} korisnika)")
-
-                    if show_details:
-                        for i, u in enumerate(active_users, 1):
-                            gid = u['google_id']
-                            # Pokušaj naći ime
-                            ime = "Nepoznato ime"
-                            if gid in persons:
-                                ime = persons[gid].get('firstName_lastName', ime)
-                            elif persons: # Ako imamo persons dict ali nismo našli po ID, probaj naći po value['google_id'] (sporije)
-                                 found = next((v['firstName_lastName'] for k, v in persons.items() if v['google_id'] == gid), None)
-                                 if found: ime = found
-
-                            print(f"   {i}. {ime} ({gid})")
-
+    # LIST COMMAND
+    if args.list_calendars:
+        if not os.path.exists(FILE_CALENDARS):
+            print(f"Fajl {FILE_CALENDARS} ne postoji.")
             sys.exit(0)
 
-        # VALIDACIJE ZA OSTALE MODE-ove
-        if not args.calendar:
-            parser.error("Argument --calendar je obavezan (osim za --list-calendars bez filtera).")
+        with open(FILE_CALENDARS, mode='r', encoding='utf-8') as f:
+            reader = csv.DictReader(f, quotechar='"')
+            fieldnames = reader.fieldnames
+            rows = list(reader)
 
-        if ',' in args.calendar:
-            logging.error("GRESKA: Naziv kalendara ne smije sadržavati zarez (',') jer to narušava CSV format.")
-            sys.exit(1)
+        # Ako je naveden specifičan kalendar, filtriraj samo njega
+        if args.calendar:
+            if args.calendar not in fieldnames:
+                print(f"Kalendar '{args.calendar}' ne postoji u sistemu.")
+                sys.exit(1)
+            target_calendars = [args.calendar]
+            show_details = True # Ako traži specifičan, uvijek prikaži detalje
+        else:
+            target_calendars = [f for f in fieldnames if f != 'google_id']
+            show_details = args.verbose
 
-        # Ako nije delete mode, events je obavezan
-        if not args.delete_calendar and not args.events:
-            parser.error("Argument --events je obavezan osim ako se koristi --delete-calendar")
+        if not target_calendars:
+            print("Nema definisanih kalendara.")
+        else:
+            print(f"Pronađeno {len(target_calendars)} kalendara:")
 
-        sync_category(args)
+            # Učitavamo i imena ljudi radi ljepšeg ispisa
+            persons = {}
+            if show_details:
+                try:
+                    persons = load_csv_to_dict(FILE_PERSONS, 'google_id') # Učitaj mapu po Google ID-u
+                    # persons je sad: {'email': {firstName_lastName: '...', ...}}
+                except:
+                    pass # Ako faila person.csv, prikazaćemo samo emailove
+
+            for cal in target_calendars:
+                active_users = [r for r in rows if r.get(cal, '').strip()]
+                print(f"\nKalendar: '{cal}' (aktivno kod {len(active_users)} korisnika)")
+
+                if show_details:
+                    for i, u in enumerate(active_users, 1):
+                        gid = u['google_id']
+                        # Pokušaj naći ime
+                        ime = "Nepoznato ime"
+                        if gid in persons:
+                            ime = persons[gid].get('firstName_lastName', ime)
+                        elif persons: # Ako imamo persons dict ali nismo našli po ID, probaj naći po value['google_id'] (sporije)
+                             found = next((v['firstName_lastName'] for k, v in persons.items() if v['google_id'] == gid), None)
+                             if found: ime = found
+
+                        print(f"   {i}. {ime} ({gid})")
+
+        sys.exit(0)
+
+    # VALIDACIJE ZA OSTALE MODE-ove
+    if not args.calendar:
+        parser.error("Argument --calendar je obavezan (osim za --list-calendars bez filtera).")
+
+    if ',' in args.calendar:
+        logging.error("GRESKA: Naziv kalendara ne smije sadržavati zarez (',') jer to narušava CSV format.")
+        sys.exit(1)
+
+    # Ako nije delete mode, events je obavezan
+    if not args.delete_calendar and not args.events:
+        parser.error("Argument --events je obavezan osim ako se koristi --delete-calendar")
+
+    sync_category(args)
