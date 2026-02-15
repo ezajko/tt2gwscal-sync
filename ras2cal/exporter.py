@@ -76,7 +76,7 @@ class Exporter:
             lines.append(f"{node.name} je dan broj {node.number}.")
 
         for node in self.schedule.slots.values():
-            lines.append(f"{node.slot_id} je termin broj 0 dana {node.day_name}.")
+            lines.append(f"{node.slot_id} je termin broj {node.number} dana {node.day_name}.")
         return "\n".join(lines)
 
     def _gen_teacher_defs(self):

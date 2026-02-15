@@ -5,7 +5,7 @@ from ..models import AssignmentNode
 from ..utils import format_person_name, merge_events
 
 
-class JSONCalendarGenerator:
+class JSONScheduleGenerator:
     def __init__(self, schedule, start_date, end_date, base_time="08:00", slot_duration=30, slots_per_index=2):
         self.schedule = schedule
         self.start_date = start_date

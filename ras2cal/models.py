@@ -11,9 +11,10 @@ class DayDefinitionNode(ASTNode):
         self.number = int(number)
 
 class SlotDefinitionNode(ASTNode):
-    def __init__(self, slot_id, day_name):
+    def __init__(self, slot_id, day_name, number):
         self.slot_id = slot_id
         self.day_name = day_name
+        self.number = int(number)
 
 class TeacherDefinitionNode(ASTNode):
     def __init__(self, name):

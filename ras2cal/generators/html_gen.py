@@ -7,9 +7,10 @@ from ..utils import format_person_name, merge_events
 
 
 class HTMLScheduleGenerator:
-    def __init__(self, schedule, output_dir, base_time="08:00", slot_duration=30, slots_per_index=2):
+    def __init__(self, schedule, output_dir, title=None, base_time="08:00", slot_duration=30, slots_per_index=2):
         self.schedule = schedule
         self.output_dir = output_dir.rstrip('/')
+        self.title = title if title else "Raspored Nastave"
         self.base_time = base_time
         self.slot_duration = int(slot_duration)
         self.slots_per_index = int(slots_per_index)
@@ -67,13 +68,15 @@ class HTMLScheduleGenerator:
         # Generisanje podataka za grupe (sa nasljeđivanjem)
         groups_data = self._generate_groups_view(raw_data)
 
-        self._write_html("raspored_predmeti.html", "Po Predmetima", self._group_by(condensed_raw, 'subject'), sort_by_type=True)
-        self._write_html("raspored_nastavnici.html", "Po Nastavnicima", self._group_by_list(condensed_merged, 'teachers'))
-        self._write_html("raspored_prostorije.html", "Po Prostorijama", self._group_by_list(condensed_merged, 'prostorija'))
+        prefix = self.schedule.semester_info.get('name')
+        if not prefix: prefix = "raspored"
+
+        self._write_html(f"{prefix}_predmeti.html", f"{self.title} - Po Predmetima", self._group_by(condensed_raw, 'subject'), prefix, sort_by_type=True)
+        self._write_html(f"{prefix}_nastavnici.html", f"{self.title} - Po Nastavnicima", self._group_by_list(condensed_merged, 'teachers'), prefix)
+        self._write_html(f"{prefix}_prostorije.html", f"{self.title} - Po Prostorijama", self._group_by_list(condensed_merged, 'prostorija'), prefix)
 
         # Novi fajl: Raspored Grupa
-        # groups_data je već rječnik { 'Grupa': [events...] }, pa ga šaljemo direktno (bez _group_by)
-        self._write_html("raspored_grupe.html", "Po Grupama", groups_data)
+        self._write_html(f"{prefix}_grupe.html", f"{self.title} - Po Grupama", groups_data, prefix)
 
     def _generate_groups_view(self, raw_data):
         """Generiše mapu evenata za svaku grupu, uključujući naslijeđene evente od roditelja."""
@@ -198,7 +201,7 @@ class HTMLScheduleGenerator:
                 grouped[v].append(item)
         return grouped
 
-    def _write_html(self, filename, title, grouped_data, sort_by_type=False):
+    def _write_html(self, filename, title, grouped_data, prefix, sort_by_type=False):
         html = f"""
         <!DOCTYPE html>
         <html lang="bs">
@@ -226,12 +229,12 @@ class HTMLScheduleGenerator:
         </head>
         <body>
             <div class="nav">
-                <a href="raspored_predmeti.html">Po Predmetima</a>
-                <a href="raspored_nastavnici.html">Po Nastavnicima</a>
-                <a href="raspored_grupe.html">Po Grupama</a>
-                <a href="raspored_prostorije.html">Po Prostorijama</a>
+                <a href="{prefix}_predmeti.html">Po Predmetima</a>
+                <a href="{prefix}_nastavnici.html">Po Nastavnicima</a>
+                <a href="{prefix}_grupe.html">Po Grupama</a>
+                <a href="{prefix}_prostorije.html">Po Prostorijama</a>
             </div>
-            <h1>Raspored Nastave - {title}</h1>
+            <h1>{title}</h1>
         """
 
         sorted_keys = sorted(grouped_data.keys())

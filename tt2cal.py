@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from ras2cal.generators import (
     HTMLScheduleGenerator,
-    JSONCalendarGenerator,
+    JSONScheduleGenerator,
     MarkdownReportGenerator,
 )
 from ras2cal.lexer import Lexer
@@ -111,6 +111,15 @@ def main():
     if not semester_title:
         semester_title = f"Semestar {datetime.now().year}"
 
+    # Update AST with resolved values (for Exporter)
+    if not ast.semester_info.get('name'):
+        # Generate valid ID from title (remove spaces)
+        ast.semester_info['name'] = semester_title.replace(" ", "")
+
+    ast.semester_info['start_date'] = semester_start
+    ast.semester_info['end_date'] = semester_end
+    ast.semester_info['duration_weeks'] = duration_weeks
+
     print(f"Semestar: {semester_title} ({semester_start} - {semester_end})", file=sys.stderr)
 
     # 3. Filtriranje
@@ -154,7 +163,7 @@ def main():
 
     # 5. Generisanje JSON-a (Samo ako je traženo)
     if args.json or args.stdout:
-        json_gen = JSONCalendarGenerator(ast, semester_start, semester_end, args.base_time, args.duration, args.slots_per_index)
+        json_gen = JSONScheduleGenerator(ast, semester_start, semester_end, args.base_time, args.duration, args.slots_per_index)
         events = json_gen.generate()
 
         output_data = {

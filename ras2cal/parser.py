@@ -110,10 +110,12 @@ class Parser:
         # Definicija termina
         if t.type == 'ID' and self.peek(1) and self.peek(1).type == 'JE_TERMIN':
             slot_id = self.consume().value
-            self.consume('JE_TERMIN'); self.consume('NUMBER'); self.consume('DANA')
+            self.consume('JE_TERMIN')
+            num = self.consume('NUMBER').value
+            self.consume('DANA')
             day_name = self.consume('ID').value
             self.consume('DOT')
-            return SlotDefinitionNode(slot_id, day_name)
+            return SlotDefinitionNode(slot_id, day_name, num)
 
         # Definicija nastavnika
         if t.type == 'ID' and self.peek(1) and self.peek(1).type == 'JE_NASTAVNIK':
