@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from .models import (
     AssignmentNode,
     DayDefinitionNode,
@@ -45,12 +47,16 @@ class Parser:
         # Definicija semestra
         if t.type == 'SEMESTAR':
             self.consume('SEMESTAR')
-            self.consume('OD')
-            start = self.consume('DATE').value
-            self.consume('DO')
-            end = self.consume('DATE').value
+            self.consume('POCINJE')
+            start_str = self.consume('DATE').value
+            self.consume('I')
+            self.consume('ZAVRSAVA')
+            end_str = self.consume('DATE').value
             self.consume('DOT')
-            return SemesterDefinitionNode(start, end)
+
+            start_iso = datetime.strptime(start_str, "%d.%m.%Y").strftime("%Y-%m-%d")
+            end_iso = datetime.strptime(end_str, "%d.%m.%Y").strftime("%Y-%m-%d")
+            return SemesterDefinitionNode(start_iso, end_iso)
 
         # Definicija dana
         if t.type == 'ID' and self.peek(1) and self.peek(1).type == 'JE_DAN':

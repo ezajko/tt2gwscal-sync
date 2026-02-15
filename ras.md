@@ -10,11 +10,11 @@ Fajl rasporeda se sastoji od niza naredbi koje se izvršavaju sekvencijalno. Sva
 Definiše početak i kraj semestra za generisanje datuma u kalendaru. Ako nije navedeno, koriste se default vrijednosti ili argumenti komandne linije.
 
 **Sintaksa:**
-`Semestar od {DatumPocetka} do {DatumKraja}.`
+`Semestar pocinje {DatumPocetka} i zavrsava {DatumKraja}.`
 
 **Primjer:**
 ```text
-Semestar od 2025-02-24 do 2025-06-15.
+Semestar pocinje 24.02.2025 i zavrsava 15.06.2025.
 ```
 
 ### 1. Definicije Vremena

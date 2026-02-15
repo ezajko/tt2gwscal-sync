@@ -23,9 +23,10 @@ class Lexer:
         ('SEDMICE',      r'\bsedmice\b'),                   # NOVO
         ('DANA',         r'\bdana\b'),
         ('SEMESTAR',     r'\bsemestar\b'),
-        ('OD',           r'\bod\b'),
-        ('DO',           r'\bdo\b'),
-        ('DATE',         r'\d{4}-\d{2}-\d{2}'),
+        ('POCINJE',      r'\bpocinje\b'),
+        ('ZAVRSAVA',     r'\bzavrsava\b'),
+        ('I',            r'\bi\b'),
+        ('DATE',         r'\d{2}\.\d{2}\.\d{4}'),
         ('NUMBER',       r'\d+'),
         ('ID',           r'[\w\-/]+'),
         ('DOT',          r'\.'),
