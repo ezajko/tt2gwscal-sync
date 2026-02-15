@@ -98,7 +98,7 @@ Fajl je niz (array) objekata, gdje svaki objekat predstavlja jedan termin.
 | `osoba` | string | DA | Identifikator osobe. Može biti **Ime Prezime** (iz `firstName_lastName`) ili **Email** (iz `google_id`). **Ova osoba je vlasnik kalendara i događaja** (njima se događaj direktno upisuje, ne šalje se pozivnica). |
 | `predmet` | string | DA | Naziv predmeta. |
 | `tip` | string | DA | Kratka oznaka tipa (mora postojati u `lecture_type.csv`, npr. "P", "V"). |
-| `grupa` | string | NE | Oznaka grupe (default: "Svi"). |
+| `grupe` | array/string | NE | Oznaka grupa. Može biti string ili lista listi (npr. `[["G1", "G2"], ["G3"]]`). Default: "Svi". |
 | `datum` | string | DA | Datum u formatu `YYYY-MM-DD`. |
 | `vrijeme_start` | string | DA | Vrijeme početka `HH:MM`. |
 | `vrijeme_kraj` | string | DA | Vrijeme kraja `HH:MM`. |
@@ -114,6 +114,7 @@ Lista stringova koja definiše goste na događaju. Svaki element može biti:
 **Objekat `ponavljanje`:**
 *   `frekvencija`: (string) RRULE frekvencija, npr. `"WEEKLY"`, `"DAILY"`.
 *   `datum_kraj`: (string) Datum do kada traje ponavljanje `YYYY-MM-DD`.
+*   `interval`: (int, opcionalno) Interval ponavljanja (npr. 2 za "svake druge sedmice").
 
 #### Primjer JSON-a
 
@@ -123,14 +124,15 @@ Lista stringova koja definiše goste na događaju. Svaki element može biti:
     "osoba": "Ime Prezime",
     "predmet": "Uvod u Programiranje",
     "tip": "P",
-    "grupa": "Grupa 1",
+    "grupe": [["Grupa 1", "Grupa 2"]],
     "datum": "2026-02-15",
     "vrijeme_start": "09:00",
     "vrijeme_kraj": "12:00",
     "prostorije": ["0-01"],
     "ponavljanje": {
       "frekvencija": "WEEKLY",
-      "datum_kraj": "2026-06-01"
+      "datum_kraj": "2026-06-01",
+      "interval": 1
     }
   },
   {
@@ -215,6 +217,11 @@ Pretpostavimo da želimo sinhronizovati raspored za zimski semestar pod nazivom 
    # Detaljan ispis korisnika samo za određeni kalendar
    ./gws --list-calendars --calendar "XYZ Time Table: 2025/2026 WS"
    ```
+
+## RAS Compiler (tt2cal)
+
+Projekat uključuje i kompajler za generisanje JSON fajlova iz tekstualnih rasporeda (RAS format).
+Za detaljno uputstvo o sintaksi i korištenju kompajlera, pogledajte **[tt2cal.md](tt2cal.md)**.
 
 ## Licenca
 

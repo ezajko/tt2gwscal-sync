@@ -70,6 +70,8 @@ def transform_event(termin, tipovi, prostorije, osobe_map):
         sala_id = prostorije.get(sala_naziv)
         if sala_id: attendees.append({'email': sala_id, 'resource': True})
 
+    location_str = ", ".join(lista_sala)
+
     # Dodatne osobe lookup
     if termin.get('dodatne_osobe'):
         for osoba_input in termin['dodatne_osobe']:
@@ -79,11 +81,22 @@ def transform_event(termin, tipovi, prostorije, osobe_map):
             elif "@" in osoba_input:
                 attendees.append({'email': osoba_input})
 
+    # Grupe logika (kompatibilnost sa tt2cal list-of-lists)
+    raw_groups = termin.get('grupe', termin.get('grupa', 'Svi'))
+    if isinstance(raw_groups, list):
+         parts = []
+         for sub in raw_groups:
+             if isinstance(sub, list): parts.append(", ".join(sub))
+             else: parts.append(str(sub))
+         group_str = " + ".join(parts)
+    else:
+         group_str = str(raw_groups)
+
     # Izgradnja opisa (sve dostupne informacije)
     desc_lines = [
         f"Predmet: {termin['predmet']}",
         f"Tip: {tip['title']}",
-        f"Grupa: {termin.get('grupa', 'Svi')}"
+        f"Grupa: {group_str}"
     ]
     if termin.get('napomena'):
         desc_lines.append(f"Napomena: {termin['napomena']}")
@@ -92,8 +105,8 @@ def transform_event(termin, tipovi, prostorije, osobe_map):
         desc_lines.append(f"Dodatne osobe: {', '.join(termin['dodatne_osobe'])}")
 
     ev = {
-        'summary': f"{tip['label']}: {termin['predmet']} ({termin.get('grupa', 'Svi')})",
-        # 'location' je uklonjen jer su sale već u attendees kao resursi
+        'summary': f"{tip['label']}: {termin['predmet']} ({group_str})",
+        'location': location_str,
         'description': "\n".join(desc_lines),
         'colorId': tip['color'],
         'start': {'dateTime': f"{termin['datum']}T{termin['vrijeme_start']}:00", 'timeZone': 'Europe/Sarajevo'},
@@ -112,7 +125,10 @@ def transform_event(termin, tipovi, prostorije, osobe_map):
     }
     if termin.get('ponavljanje'):
         until = termin['ponavljanje']['datum_kraj'].replace('-', '') + "T235959Z"
-        ev['recurrence'] = [f"RRULE:FREQ={termin['ponavljanje']['frekvencija']};UNTIL={until}"]
+        rrule = f"RRULE:FREQ={termin['ponavljanje']['frekvencija']};UNTIL={until}"
+        if termin['ponavljanje'].get('interval', 1) > 1:
+            rrule += f";INTERVAL={termin['ponavljanje']['interval']}"
+        ev['recurrence'] = [rrule]
     return ev
 
 def sync_category(args):
