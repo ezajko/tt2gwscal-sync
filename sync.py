@@ -218,7 +218,19 @@ def sync_category(args):
         sys.exit(1)
 
     with open(json_path, 'r', encoding='utf-8') as f:
-        events_data = json.load(f)
+        loaded = json.load(f)
+
+    if isinstance(loaded, dict) and 'events' in loaded:
+        events_data = loaded['events']
+        if not args.calendar and loaded.get('meta', {}).get('calendar_name'):
+             args.calendar = loaded['meta']['calendar_name']
+             logger.info(f"Koristim naziv kalendara iz metapodataka: {args.calendar}")
+    else:
+        events_data = loaded
+
+    if not args.calendar:
+        logger.error("Kalendar nije specificiran (ni preko CLI, ni u JSON meta).")
+        sys.exit(1)
 
     # Mapa email -> Ime za lookup po Google ID-u
     email_to_name = {v['google_id']: k for k, v in persons.items()}
@@ -430,10 +442,13 @@ if __name__ == "__main__":
         sys.exit(0)
 
     # VALIDACIJE ZA OSTALE MODE-ove
-    if not args.calendar:
-        parser.error("Argument --calendar je obavezan (osim za --list-calendars bez filtera).")
+    if args.delete_calendar and not args.calendar:
+        parser.error("Argument --calendar je obavezan za --delete-calendar.")
 
-    if ',' in args.calendar:
+    if not args.calendar and not args.events:
+        parser.error("Argument --calendar ili --events je obavezan.")
+
+    if args.calendar and ',' in args.calendar:
         logging.error("GRESKA: Naziv kalendara ne smije sadržavati zarez (',') jer to narušava CSV format.")
         sys.exit(1)
 

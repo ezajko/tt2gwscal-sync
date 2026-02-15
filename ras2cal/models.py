@@ -38,21 +38,16 @@ class RoomDefinitionNode(ASTNode):
         self.name = name
 
 class SemesterDefinitionNode(ASTNode):
-    def __init__(self, start_date, end_date, name=None):
+    """Predstavlja deklaraciju: {Name} je semestar."""
+    def __init__(self, name):
         self.name = name
-        self.start_date = start_date
-        self.end_date = end_date
 
-class SemesterMetaNode(ASTNode):
-    def __init__(self, name, type, academic_year):
-        self.name = name
-        self.type = type
-        self.academic_year = academic_year
-
-class SemesterHolidaysNode(ASTNode):
-    def __init__(self, name, holidays):
-        self.name = name
-        self.holidays = holidays
+class SemesterAttributeNode(ASTNode):
+    """Predstavlja atribute semestra: pocinje, zavrsava, traje, ima nenastavne dane."""
+    def __init__(self, semester_name, attr_type, value):
+        self.semester_name = semester_name
+        self.attr_type = attr_type # 'start', 'end', 'duration', 'holidays'
+        self.value = value
 
 class AssignmentNode(ASTNode):
     def __init__(self, teachers, subject, type, groups, rooms, slots, frequency_hint=None, unknown_tokens=None, recurrence_interval=None):
@@ -78,13 +73,21 @@ class Schedule(ASTNode):
         self.rooms = {}     # name -> RoomDefinitionNode
         self.assignments = [] # List[AssignmentNode]
 
-        # Semester info
-        self.start_date = None
-        self.end_date = None
-        self.semester_name = None
-        self.semester_type = None
-        self.academic_year = None
-        self.holidays = []
+        # Semester info (consolidated)
+        self.semester_info = {
+            'name': None,
+            'start_date': None,
+            'end_date': None,
+            'duration_weeks': None, # or days
+            'holidays': []
+        }
+
+    @property
+    def start_date(self): return self.semester_info['start_date']
+    @property
+    def end_date(self): return self.semester_info['end_date']
+    @property
+    def holidays(self): return self.semester_info['holidays']
 
     def add(self, node):
         if isinstance(node, DayDefinitionNode):
@@ -107,15 +110,16 @@ class Schedule(ASTNode):
         elif isinstance(node, AssignmentNode):
             self.assignments.append(node)
         elif isinstance(node, SemesterDefinitionNode):
-            self.start_date = node.start_date
-            self.end_date = node.end_date
-            if node.name: self.semester_name = node.name
-        elif isinstance(node, SemesterMetaNode):
-            self.semester_name = node.name
-            self.semester_type = node.type
-            self.academic_year = node.academic_year
-        elif isinstance(node, SemesterHolidaysNode):
-            self.holidays.extend(node.holidays)
+            self.semester_info['name'] = node.name
+        elif isinstance(node, SemesterAttributeNode):
+            if node.attr_type == 'start':
+                self.semester_info['start_date'] = node.value
+            elif node.attr_type == 'end':
+                self.semester_info['end_date'] = node.value
+            elif node.attr_type == 'duration':
+                self.semester_info['duration_weeks'] = node.value
+            elif node.attr_type == 'holidays':
+                self.semester_info['holidays'].extend(node.value)
 
     def __repr__(self):
         return f"Schedule(days={len(self.days)}, slots={len(self.slots)}, teachers={len(self.teachers)}, subjects={len(self.subjects)}, study_groups={len(self.study_groups)}, subgroups={len(self.subgroups)}, rooms={len(self.rooms)}, assignments={len(self.assignments)})"

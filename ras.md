@@ -7,23 +7,21 @@ Ovaj dokument opisuje sintaksu i strukturu domenski specifičnog jezika (DSL) ko
 Fajl rasporeda se sastoji od niza naredbi koje se izvršavaju sekvencijalno. Svaka naredba mora završiti tačkom (`.`).
 
 ### 0. Konfiguracija Semestra (Opcionalno)
-Definiše početak i kraj semestra za generisanje datuma u kalendaru. Ako nije navedeno, koriste se default vrijednosti ili argumenti komandne linije.
+Definiše atribute semestra kao što su trajanje i nenastavni dani.
+Ime semestra se koristi i kao naziv kalendara (uz automatsko formatiranje CamelCase -> Space).
 
-**Jednostavna Sintaksa:**
-`Semestar pocinje {DatumPocetka} i zavrsava {DatumKraja}.`
-
-**Napredna Sintaksa (preporučeno):**
-Omogućava definisanje imena semestra, akademske godine i praznika (nenastavnih dana).
-
-1. `Semestar je {Ime} [kao {Tip}] [u akademskoj {Godina} godini].`
-2. `{Ime} pocinje {DatumPocetka} i zavrsava {DatumKraja}.`
-3. `{Ime} ima nenastavne dane {Datum1}, {Datum2}...`
+**Sintaksa:**
+1. `{Ime} je semestar.` (Obavezno za definiciju)
+2. `{Ime} pocinje {Datum}.`
+3. `{Ime} zavrsava {Datum}.` ILI `{Ime} traje {Broj} sedmica.`
+4. `{Ime} ima nenastavne dane {Datum1}, {Datum2}...`
 
 **Primjer:**
 ```text
-Semestar je Zimski kao redovni u akademskoj 2025/2026 godini.
-Zimski pocinje 24.02.2025 i zavrsava 15.06.2025.
-Zimski ima nenastavne dane 01.05.2025, 02.05.2025.
+Zimski2025 je semestar.
+Zimski2025 pocinje 24.02.2025.
+Zimski2025 traje 15 sedmica.
+Zimski2025 ima nenastavne dane 01.05.2025, 02.05.2025.
 ```
 
 ### 1. Definicije Vremena

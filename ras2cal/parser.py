@@ -5,9 +5,8 @@ from .models import (
     DayDefinitionNode,
     RoomDefinitionNode,
     Schedule,
+    SemesterAttributeNode,
     SemesterDefinitionNode,
-    SemesterHolidaysNode,
-    SemesterMetaNode,
     SlotDefinitionNode,
     StudyGroupDefinitionNode,
     StudySubGroupDefinitionNode,
@@ -46,76 +45,59 @@ class Parser:
         t = self.peek()
         if not t: return None
 
-        # Definicija semestra
-        if t.type == 'SEMESTAR':
-            self.consume('SEMESTAR')
+        # Definicija semestra (ID je SEMESTAR)
+        if t.type == 'ID' and self.peek(1) and self.peek(1).type == 'JE':
+             if self.peek(2) and self.peek(2).type == 'SEMESTAR':
+                 name = self.consume('ID').value
+                 self.consume('JE')
+                 self.consume('SEMESTAR')
+                 self.consume('DOT')
+                 return SemesterDefinitionNode(name)
 
-            # Metadata: Semestar je {Name} ...
-            if self.peek() and self.peek().type == 'JE':
-                self.consume('JE')
-                name = self.consume('ID').value
+        # Atributi semestra (ID/SEMESTAR + POCINJE/ZAVRSAVA/TRAJE/IMA)
+        if t.type in ['ID', 'SEMESTAR']:
+            nxt = self.peek(1)
+            if nxt:
+                name = t.value if t.type == 'ID' else "Semestar"
 
-                sem_type = None
-                if self.peek() and self.peek().type == 'KAO':
-                    self.consume('KAO')
-                    sem_type = self.consume('ID').value
+                if nxt.type == 'POCINJE':
+                    self.consume(t.type)
+                    self.consume('POCINJE')
+                    val_str = self.consume('DATE').value
+                    val = datetime.strptime(val_str, "%d.%m.%Y").strftime("%Y-%m-%d")
+                    self.consume('DOT')
+                    return SemesterAttributeNode(name, 'start', val)
 
-                acad_year = None
-                if self.peek() and self.peek().type == 'U':
-                    self.consume('U')
-                    if self.peek() and self.peek().type == 'AKADEMSKOJ':
-                        self.consume('AKADEMSKOJ')
-                        if self.peek() and self.peek().type == 'ACAD_YEAR_VAL':
-                            acad_year = self.consume('ACAD_YEAR_VAL').value
-                        else:
-                            acad_year = self.consume('ID').value
-                        self.consume('GODINI')
+                elif nxt.type == 'ZAVRSAVA':
+                    self.consume(t.type)
+                    self.consume('ZAVRSAVA')
+                    val_str = self.consume('DATE').value
+                    val = datetime.strptime(val_str, "%d.%m.%Y").strftime("%Y-%m-%d")
+                    self.consume('DOT')
+                    return SemesterAttributeNode(name, 'end', val)
 
-                self.consume('DOT')
-                return SemesterMetaNode(name, sem_type, acad_year)
+                elif nxt.type == 'TRAJE':
+                    self.consume(t.type)
+                    self.consume('TRAJE')
+                    val = int(self.consume('NUMBER').value)
+                    if self.peek() and self.peek().type in ['SEDMICA', 'SEDMICE']:
+                        self.consume()
+                    self.consume('DOT')
+                    return SemesterAttributeNode(name, 'duration', val)
 
-            # Simple: Semestar pocinje ...
-            elif self.peek() and self.peek().type == 'POCINJE':
-                self.consume('POCINJE')
-                start_str = self.consume('DATE').value
-                self.consume('I')
-                self.consume('ZAVRSAVA')
-                end_str = self.consume('DATE').value
-                self.consume('DOT')
+                elif nxt.type == 'IMA':
+                    if self.peek(2) and self.peek(2).type == 'NENASTAVNE':
+                        self.consume(t.type)
+                        self.consume('IMA')
+                        self.consume('NENASTAVNE')
+                        if self.peek().type in ['DANA', 'DANE']: self.consume()
 
-                start_iso = datetime.strptime(start_str, "%d.%m.%Y").strftime("%Y-%m-%d")
-                end_iso = datetime.strptime(end_str, "%d.%m.%Y").strftime("%Y-%m-%d")
-                return SemesterDefinitionNode(start_iso, end_iso)
-
-        # Definicija semestra po imenu (POCINJE/ZAVRSAVA)
-        if t.type == 'ID' and self.peek(1) and self.peek(1).type == 'POCINJE':
-            name = self.consume('ID').value
-            self.consume('POCINJE')
-            start_str = self.consume('DATE').value
-            self.consume('I')
-            self.consume('ZAVRSAVA')
-            end_str = self.consume('DATE').value
-            self.consume('DOT')
-
-            start_iso = datetime.strptime(start_str, "%d.%m.%Y").strftime("%Y-%m-%d")
-            end_iso = datetime.strptime(end_str, "%d.%m.%Y").strftime("%Y-%m-%d")
-            return SemesterDefinitionNode(start_iso, end_iso, name=name)
-
-        # Definicija praznika (IMA NENASTAVNE DANE)
-        if t.type == 'ID' and self.peek(1) and self.peek(1).type == 'IMA':
-            name = self.consume('ID').value
-            self.consume('IMA')
-            self.consume('NENASTAVNE')
-            if self.peek() and self.peek().type == 'DANA': self.consume('DANA')
-            elif self.peek() and self.peek().type == 'DANE': self.consume('DANE')
-
-            holidays = []
-            while self.peek() and self.peek().type != 'DOT':
-                h_str = self.consume('DATE').value
-                holidays.append(datetime.strptime(h_str, "%d.%m.%Y").strftime("%Y%m%d"))
-
-            self.consume('DOT')
-            return SemesterHolidaysNode(name, holidays)
+                        holidays = []
+                        while self.peek() and self.peek().type != 'DOT':
+                            h_str = self.consume('DATE').value
+                            holidays.append(datetime.strptime(h_str, "%d.%m.%Y").strftime("%Y%m%d"))
+                        self.consume('DOT')
+                        return SemesterAttributeNode(name, 'holidays', holidays)
 
         # Definicija dana
         if t.type == 'ID' and self.peek(1) and self.peek(1).type == 'JE_DAN':

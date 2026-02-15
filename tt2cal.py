@@ -1,6 +1,7 @@
 import argparse
 import json
 import sys
+from datetime import datetime, timedelta
 
 from ras2cal.generators import (
     HTMLScheduleGenerator,
@@ -38,8 +39,13 @@ def main():
     parser.add_argument("--subject", help="Filtriraj po predmetu (regex)")
 
     # Konfiguracija vremena
-    parser.add_argument("--start", default=None, help="Početak semestra YYYY-MM-DD")
-    parser.add_argument("--end", default=None, help="Kraj semestra YYYY-MM-DD")
+    parser.add_argument("--semestar-start", help="Početak semestra YYYY-MM-DD or DD.MM.YYYY")
+    parser.add_argument("--semestar-end", help="Kraj semestra YYYY-MM-DD or DD.MM.YYYY")
+    parser.add_argument("--semestar-duration", default=15, type=int, help="Trajanje u sedmicama (default 15)")
+    parser.add_argument("--semestar-title", help="Naziv semestra (kalendara)")
+    # Deprecated but kept for compat
+    parser.add_argument("--start", help="Alias for --semestar-start")
+    parser.add_argument("--end", help="Alias for --semestar-end")
 
     parser.add_argument("--base-time", default="08:00", help="Vrijeme početka prvog termina (HH:MM), default 08:00")
     parser.add_argument("--duration", default=30, type=int, help="Trajanje osnovnog slota u minutama (default 30)")
@@ -61,11 +67,51 @@ def main():
     ast_parser = Parser(lexer.tokens)
     ast = ast_parser.parse() # Vraća Schedule objekat
 
-    # Resolve dates
-    semester_start = args.start if args.start else (ast.start_date if ast.start_date else DEFAULT_SEMESTAR_START)
-    semester_end = args.end if args.end else (ast.end_date if ast.end_date else DEFAULT_SEMESTAR_KRAJ)
+    # Resolve Start
+    arg_start = args.semestar_start or args.start
+    if arg_start:
+        try:
+            semester_start = datetime.strptime(arg_start, "%Y-%m-%d").strftime("%Y-%m-%d")
+        except ValueError:
+            semester_start = datetime.strptime(arg_start, "%d.%m.%Y").strftime("%Y-%m-%d")
+    elif ast.start_date:
+        semester_start = ast.start_date
+    else:
+        # Default: 01.10.CurrentYear
+        current_year = datetime.now().year
+        semester_start = f"{current_year}-10-01"
 
-    print(f"Semestar: {semester_start} - {semester_end}", file=sys.stderr)
+    # Resolve Duration (weeks)
+    duration_weeks = args.semestar_duration
+    if ast.semester_info.get('duration_weeks'):
+         duration_weeks = ast.semester_info['duration_weeks']
+
+    # Resolve End
+    arg_end = args.semestar_end or args.end
+    if arg_end:
+        try:
+            semester_end = datetime.strptime(arg_end, "%Y-%m-%d").strftime("%Y-%m-%d")
+        except ValueError:
+            semester_end = datetime.strptime(arg_end, "%d.%m.%Y").strftime("%Y-%m-%d")
+    elif ast.end_date:
+        semester_end = ast.end_date
+    else:
+        # Calculate from start + duration
+        start_dt = datetime.strptime(semester_start, "%Y-%m-%d")
+        end_dt = start_dt + timedelta(weeks=duration_weeks)
+        semester_end = end_dt.strftime("%Y-%m-%d")
+
+    # Resolve Title
+    semester_title = args.semestar_title
+    if not semester_title and ast.semester_info.get('name'):
+        # Format CamelCase to Space Separated
+        import re
+        raw_name = ast.semester_info['name']
+        semester_title = re.sub(r'([a-z])([A-Z])', r'\1 \2', raw_name)
+    if not semester_title:
+        semester_title = f"Semestar {datetime.now().year}"
+
+    print(f"Semestar: {semester_title} ({semester_start} - {semester_end})", file=sys.stderr)
 
     # 3. Filtriranje
     filters = {
@@ -111,14 +157,24 @@ def main():
         json_gen = JSONCalendarGenerator(ast, semester_start, semester_end, args.base_time, args.duration, args.slots_per_index)
         events = json_gen.generate()
 
+        output_data = {
+            "meta": {
+                "calendar_name": semester_title,
+                "start": semester_start,
+                "end": semester_end,
+                "holidays": ast.holidays
+            },
+            "events": events
+        }
+
         if args.json:
             with open(args.json, 'w', encoding='utf-8') as f:
-                json.dump(events, f, indent=4, ensure_ascii=False)
+                json.dump(output_data, f, indent=4, ensure_ascii=False)
             if not args.stdout:
                 print(f"Generisan JSON: {args.json}", file=sys.stderr)
 
         if args.stdout:
-            print(json.dumps(events, indent=4, ensure_ascii=False))
+            print(json.dumps(output_data, indent=4, ensure_ascii=False))
 
     # 6. Generisanje Markdown-a
     if args.md:
