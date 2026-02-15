@@ -1,28 +1,22 @@
 import os
-import re
-from datetime import datetime, timedelta
 
-from ..models import AssignmentNode, SlotDefinitionNode
-from ..utils import format_person_name, merge_events
+from ..utils import merge_events
 
 
 class HTMLScheduleGenerator:
-    def __init__(self, schedule, output_dir, title=None, base_time="08:00", slot_duration=30, slots_per_index=2):
-        self.schedule = schedule
+    def __init__(self, model, output_dir, title=None):
+        self.model = model
         self.output_dir = output_dir.rstrip('/')
-        self.title = title if title else "Raspored Nastave"
-        self.base_time = base_time
-        self.slot_duration = int(slot_duration)
-        self.slots_per_index = int(slots_per_index)
-        self.slots_map = {sid: node.day_name for sid, node in schedule.slots.items()}
+        self.title = title if title else f"Raspored - {model.semester_name}"
+
         self.day_order = {
-            "Ponedjeljak": 0, "Ponedeljak": 0,
-            "Utorak": 1,
-            "Srijeda": 2,
-            "Četvrtak": 3, "Cetvrtak": 3,
-            "Petak": 4,
-            "Subota": 5,
-            "Nedjelja": 6, "Nedelja": 6,
+            "Ponedjeljak": 0, "Ponedeljak": 0, "Mon": 0,
+            "Utorak": 1, "Tue": 1,
+            "Srijeda": 2, "Sreda": 2, "Wed": 2,
+            "Četvrtak": 3, "Cetvrtak": 3, "Thu": 3,
+            "Petak": 4, "Fri": 4,
+            "Subota": 5, "Sat": 5,
+            "Nedjelja": 6, "Nedelja": 6, "Sun": 6,
             "Nepoznato": 7
         }
         self.type_order = {'P': 0, 'V': 1, 'L': 2, 'T': 3}
@@ -32,34 +26,24 @@ class HTMLScheduleGenerator:
             os.makedirs(self.output_dir)
 
         raw_data = []
-        for node in self.schedule.assignments:
-            if isinstance(node, AssignmentNode) and node.slots:
-                day = self.slots_map.get(node.slots[0], "Nepoznato")
-                start = self._slot_to_t(node.slots[0])
-                end = self._slot_to_t(node.slots[-1], end=True)
+        for ev in self.model.events:
+             entry = {
+                'subject': ev.subject.name,
+                'type': ev.type.code,
+                'teachers': [t.name for t in ev.teachers],
+                'grupe': [[g.name] for g in ev.groups],
+                'rooms': [r.name for r in ev.rooms],
+                'day': ev.day_name,
+                'time': f"{ev.start_time_str} - {ev.end_time_str}",
+                'start_time': ev.start_time_str,
+                'end_time': ev.end_time_str,
 
-                for teacher in node.teachers:
-                     entry = {
-                        'subject': node.subject,
-                        'type': node.type,
-                        'teachers': [format_person_name(teacher)],
-                        'grupe': node.groups,
-                        'rooms': node.rooms,
-                        'day': day,
-                        'time': f"{start} - {end}",
-                        'start_time': start,
-                        'end_time': end,
-                        'slots': " ".join(node.slots),
-
-                        'datum': day,
-                        'vrijeme_start': start,
-                        'vrijeme_kraj': end,
-                        'osoba': format_person_name(teacher),
-                        'predmet': node.subject,
-                        'tip': node.type,
-                        'prostorija': node.rooms
-                    }
-                     raw_data.append(entry)
+                # Legacy fields for compatibility with existing templates/methods
+                'predmet': ev.subject.name,
+                'tip': ev.type.code,
+                'prostorija': [r.name for r in ev.rooms]
+            }
+             raw_data.append(entry)
 
         merged_data = merge_events(raw_data)
         condensed_raw = self._condense_teachers(raw_data)
@@ -68,61 +52,37 @@ class HTMLScheduleGenerator:
         # Generisanje podataka za grupe (sa nasljeđivanjem)
         groups_data = self._generate_groups_view(raw_data)
 
-        prefix = self.schedule.semester_info.get('name')
-        if not prefix: prefix = "raspored"
+        prefix = self.model.semester_name
 
         self._write_html(f"{prefix}_predmeti.html", f"{self.title} - Po Predmetima", self._group_by(condensed_raw, 'subject'), prefix, sort_by_type=True)
         self._write_html(f"{prefix}_nastavnici.html", f"{self.title} - Po Nastavnicima", self._group_by_list(condensed_merged, 'teachers'), prefix)
         self._write_html(f"{prefix}_prostorije.html", f"{self.title} - Po Prostorijama", self._group_by_list(condensed_merged, 'prostorija'), prefix)
-
-        # Novi fajl: Raspored Grupa
         self._write_html(f"{prefix}_grupe.html", f"{self.title} - Po Grupama", groups_data, prefix)
 
     def _generate_groups_view(self, raw_data):
         """Generiše mapu evenata za svaku grupu, uključujući naslijeđene evente od roditelja."""
 
-        # 1. Mapa roditelja
-        parent_map = {}
-        for g_node in self.schedule.subgroups.values():
-            if g_node.parent:
-                parent_map[g_node.name] = g_node.parent
-
-        # 2. Skup svih grupa
-        all_groups = set(self.schedule.subgroups.keys()) | set(self.schedule.study_groups.keys())
-        for item in raw_data:
-            for sublist in item['grupe']:
-                all_groups.update(sublist)
-
-        if "Svi" in all_groups: all_groups.remove("Svi") # Svi se ne prikazuje kao grupa
-
         group_events = {}
+        # Sort groups by name for consistent output
+        all_groups = sorted(self.model.groups.values(), key=lambda g: g.name)
 
-        for group in sorted(all_groups):
-            # Odredi relevantne grupe (nasljeđivanje)
-            relevant_groups = {group}
-            curr = group
-            # Penjemo se uz stablo roditelja
-            # Pazimo na kružne reference (iako parser ne dozvoljava, dobro je biti siguran)
-            seen = {curr}
-            while curr in parent_map:
-                parent = parent_map[curr]
-                if parent in seen: break
-                relevant_groups.add(parent)
-                curr = parent
-                seen.add(curr)
+        for group in all_groups:
+            if group.name == "Svi": continue # Skip "Svi" as a specific group view
+
+            # Ancestors (parents)
+            ancestors = group.get_all_ancestors()
+            relevant_names = {group.name} | {a.name for a in ancestors}
 
             my_events = []
             for item in raw_data:
-                # Provjera da li item cilja mene ili roditelja
-                # item['grupe'] = [['G1', 'G2']]
+                # Check intersection
                 is_relevant = False
                 for sublist in item['grupe']:
-                    # Presjek setova: ako bilo koja grupa u sublisti je u relevant_groups
-                    if not set(sublist).isdisjoint(relevant_groups):
+                    if not set(sublist).isdisjoint(relevant_names):
                         is_relevant = True
                         break
 
-                # Također, ako je assignment za "Svi", dodajemo ga
+                # Check "Svi"
                 if [["Svi"]] == item['grupe']:
                     is_relevant = True
 
@@ -130,11 +90,9 @@ class HTMLScheduleGenerator:
                     my_events.append(item)
 
             if my_events:
-                # Kondenzujemo profesore (da ne budu dupli redovi za isti predmet)
-                # I spajamo evente
                 merged = merge_events(my_events)
                 condensed = self._condense_teachers(merged)
-                group_events[group] = condensed
+                group_events[group.name] = condensed
 
         return group_events
 
@@ -159,25 +117,14 @@ class HTMLScheduleGenerator:
 
             if key not in grouped:
                 grouped[key] = item.copy()
-                if isinstance(grouped[key]['teachers'], str):
-                     grouped[key]['teachers'] = [grouped[key]['teachers']]
-                else:
-                     grouped[key]['teachers'] = list(grouped[key]['teachers'])
+                # Ensure list copy
+                grouped[key]['teachers'] = list(item['teachers'])
             else:
                 current = grouped[key]['teachers']
                 for t in item['teachers']:
                     if t not in current:
                         current.append(t)
         return list(grouped.values())
-
-    def _slot_to_t(self, slot, end=False):
-        num_match = re.search(r'\d+', slot)
-        num = int(num_match.group()) if num_match else 1
-        minutes_offset = (num - 1) * (self.slots_per_index * self.slot_duration)
-        if 'A' in slot: minutes_offset += self.slot_duration
-        if end: minutes_offset += self.slot_duration
-        start_time_dt = datetime.strptime(self.base_time, "%H:%M")
-        return (start_time_dt + timedelta(minutes=minutes_offset)).strftime("%H:%M")
 
     def _group_by(self, data, key):
         grouped = {}

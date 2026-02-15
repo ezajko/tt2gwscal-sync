@@ -12,9 +12,6 @@ from ras2cal.lexer import Lexer
 from ras2cal.parser import Parser
 from ras2cal.utils import filter_schedule, load_source_recursive
 
-# --- DEFAULT KONFIGURACIJA ---
-DEFAULT_SEMESTAR_START = "2024-09-30"
-DEFAULT_SEMESTAR_KRAJ = "2025-01-15"
 
 def main():
     parser = argparse.ArgumentParser(description="Kompajler za školski raspored DSL u JSON/Markdown/HTML.")
@@ -161,9 +158,23 @@ def main():
 
         print("=====================", file=sys.stderr)
 
-    # 5. Generisanje JSON-a (Samo ako je traženo)
+    # 5. Kompajliranje (IR)
+    from ras2cal.compiler import ScheduleCompiler
+    config = {
+        'start_date': semester_start,
+        'end_date': semester_end,
+        'name': semester_title,
+        'holidays': ast.holidays,
+        'base_time': args.base_time,
+        'slot_duration': args.duration,
+        'slots_per_index': args.slots_per_index
+    }
+    compiler = ScheduleCompiler(ast, config)
+    ir_model = compiler.compile()
+
+    # 6. Generisanje JSON-a
     if args.json or args.stdout:
-        json_gen = JSONScheduleGenerator(ast, semester_start, semester_end, args.base_time, args.duration, args.slots_per_index)
+        json_gen = JSONScheduleGenerator(ir_model)
         events = json_gen.generate()
 
         output_data = {
@@ -185,20 +196,20 @@ def main():
         if args.stdout:
             print(json.dumps(output_data, indent=4, ensure_ascii=False))
 
-    # 6. Generisanje Markdown-a
+    # 7. Generisanje Markdown-a
     if args.md:
         md_gen = MarkdownReportGenerator(ast)
         with open(args.md, 'w', encoding='utf-8') as f:
             f.write(md_gen.generate())
         print(f"Generisan Markdown: {args.md}", file=sys.stderr)
 
-    # 7. Generisanje HTML-a
+    # 8. Generisanje HTML-a
     if args.html:
-        html_gen = HTMLScheduleGenerator(ast, args.html, args.base_time, args.duration, args.slots_per_index)
+        html_gen = HTMLScheduleGenerator(ir_model, args.html, title=semester_title)
         html_gen.generate()
         print(f"Generisani HTML fajlovi: {args.html}/", file=sys.stderr)
 
-    # 8. Eksport (Refaktoring)
+    # 9. Eksport (Refaktoring)
     if args.export:
         from ras2cal.exporter import Exporter
         exporter = Exporter(ast, args.export)

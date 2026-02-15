@@ -1,0 +1,13 @@
+Zimski2025 je semestar.
+Zimski2025 pocinje 24.02.2025.
+Zimski2025 traje 15 sedmica.
+Zimski2025 ima nenastavne dane 01.05.2025.
+
+Ponedjeljak je dan broj 1.
+T1 je termin broj 1 dana Ponedjeljak.
+Neko je nastavnik.
+Predmet je predmet.
+S1 je odjeljenje.
+S01 je prostorija.
+
+Neko predaje Predmet odjeljenju S1 u prostoriji S01 tacno u terminu T1.
