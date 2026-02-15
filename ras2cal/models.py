@@ -37,6 +37,11 @@ class RoomDefinitionNode(ASTNode):
     def __init__(self, name):
         self.name = name
 
+class SemesterDefinitionNode(ASTNode):
+    def __init__(self, start_date, end_date):
+        self.start_date = start_date
+        self.end_date = end_date
+
 class AssignmentNode(ASTNode):
     def __init__(self, teachers, subject, type, groups, rooms, slots, frequency_hint=None, unknown_tokens=None, recurrence_interval=None):
         self.teachers = teachers
@@ -60,6 +65,8 @@ class Schedule(ASTNode):
         self.subgroups = {}    # name -> StudySubGroupDefinitionNode
         self.rooms = {}     # name -> RoomDefinitionNode
         self.assignments = [] # List[AssignmentNode]
+        self.start_date = None
+        self.end_date = None
 
     def add(self, node):
         if isinstance(node, DayDefinitionNode):
@@ -81,6 +88,9 @@ class Schedule(ASTNode):
             self.rooms[node.name] = node
         elif isinstance(node, AssignmentNode):
             self.assignments.append(node)
+        elif isinstance(node, SemesterDefinitionNode):
+            self.start_date = node.start_date
+            self.end_date = node.end_date
 
     def __repr__(self):
         return f"Schedule(days={len(self.days)}, slots={len(self.slots)}, teachers={len(self.teachers)}, subjects={len(self.subjects)}, study_groups={len(self.study_groups)}, subgroups={len(self.subgroups)}, rooms={len(self.rooms)}, assignments={len(self.assignments)})"

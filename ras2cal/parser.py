@@ -3,6 +3,7 @@ from .models import (
     DayDefinitionNode,
     RoomDefinitionNode,
     Schedule,
+    SemesterDefinitionNode,
     SlotDefinitionNode,
     StudyGroupDefinitionNode,
     StudySubGroupDefinitionNode,
@@ -40,6 +41,16 @@ class Parser:
     def parse_statement(self):
         t = self.peek()
         if not t: return None
+
+        # Definicija semestra
+        if t.type == 'SEMESTAR':
+            self.consume('SEMESTAR')
+            self.consume('OD')
+            start = self.consume('DATE').value
+            self.consume('DO')
+            end = self.consume('DATE').value
+            self.consume('DOT')
+            return SemesterDefinitionNode(start, end)
 
         # Definicija dana
         if t.type == 'ID' and self.peek(1) and self.peek(1).type == 'JE_DAN':

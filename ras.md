@@ -6,6 +6,17 @@ Ovaj dokument opisuje sintaksu i strukturu domenski specifičnog jezika (DSL) ko
 
 Fajl rasporeda se sastoji od niza naredbi koje se izvršavaju sekvencijalno. Svaka naredba mora završiti tačkom (`.`).
 
+### 0. Konfiguracija Semestra (Opcionalno)
+Definiše početak i kraj semestra za generisanje datuma u kalendaru. Ako nije navedeno, koriste se default vrijednosti ili argumenti komandne linije.
+
+**Sintaksa:**
+`Semestar od {DatumPocetka} do {DatumKraja}.`
+
+**Primjer:**
+```text
+Semestar od 2025-02-24 do 2025-06-15.
+```
+
 ### 1. Definicije Vremena
 Definišu osnovni vremenski okvir rasporeda.
 

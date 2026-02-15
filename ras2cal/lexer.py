@@ -22,6 +22,10 @@ class Lexer:
         ('SVAKE',        r'\bsvake\b'),                     # NOVO
         ('SEDMICE',      r'\bsedmice\b'),                   # NOVO
         ('DANA',         r'\bdana\b'),
+        ('SEMESTAR',     r'\bsemestar\b'),
+        ('OD',           r'\bod\b'),
+        ('DO',           r'\bdo\b'),
+        ('DATE',         r'\d{4}-\d{2}-\d{2}'),
         ('NUMBER',       r'\d+'),
         ('ID',           r'[\w\-/]+'),
         ('DOT',          r'\.'),
@@ -34,7 +38,7 @@ class Lexer:
         line_num = 1
         regex = '|'.join(f'(?P<{name}>{pattern})' for name, pattern in self.RULES)
 
-        for mo in re.finditer(regex, text):
+        for mo in re.finditer(regex, text, re.IGNORECASE):
             kind = mo.lastgroup
             if kind == 'NEWLINE':
                 line_num += 1

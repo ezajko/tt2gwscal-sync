@@ -38,8 +38,8 @@ def main():
     parser.add_argument("--subject", help="Filtriraj po predmetu (regex)")
 
     # Konfiguracija vremena
-    parser.add_argument("--start", default=DEFAULT_SEMESTAR_START, help="Početak semestra YYYY-MM-DD")
-    parser.add_argument("--end", default=DEFAULT_SEMESTAR_KRAJ, help="Kraj semestra YYYY-MM-DD")
+    parser.add_argument("--start", default=None, help="Početak semestra YYYY-MM-DD")
+    parser.add_argument("--end", default=None, help="Kraj semestra YYYY-MM-DD")
 
     parser.add_argument("--base-time", default="08:00", help="Vrijeme početka prvog termina (HH:MM), default 08:00")
     parser.add_argument("--duration", default=30, type=int, help="Trajanje osnovnog slota u minutama (default 30)")
@@ -60,6 +60,12 @@ def main():
     lexer = Lexer(full_text)
     ast_parser = Parser(lexer.tokens)
     ast = ast_parser.parse() # Vraća Schedule objekat
+
+    # Resolve dates
+    semester_start = args.start if args.start else (ast.start_date if ast.start_date else DEFAULT_SEMESTAR_START)
+    semester_end = args.end if args.end else (ast.end_date if ast.end_date else DEFAULT_SEMESTAR_KRAJ)
+
+    print(f"Semestar: {semester_start} - {semester_end}", file=sys.stderr)
 
     # 3. Filtriranje
     filters = {
@@ -102,14 +108,14 @@ def main():
 
     # 5. Generisanje JSON-a (Samo ako je traženo)
     if args.json or args.stdout:
-        json_gen = JSONCalendarGenerator(ast, args.start, args.end, args.base_time, args.duration, args.slots_per_index)
+        json_gen = JSONCalendarGenerator(ast, semester_start, semester_end, args.base_time, args.duration, args.slots_per_index)
         events = json_gen.generate()
 
         if args.json:
             with open(args.json, 'w', encoding='utf-8') as f:
                 json.dump(events, f, indent=4, ensure_ascii=False)
             if not args.stdout:
-                print(f"✓ Generisan JSON: {args.json}", file=sys.stderr)
+                print(f"Generisan JSON: {args.json}", file=sys.stderr)
 
         if args.stdout:
             print(json.dumps(events, indent=4, ensure_ascii=False))
@@ -119,13 +125,13 @@ def main():
         md_gen = MarkdownReportGenerator(ast)
         with open(args.md, 'w', encoding='utf-8') as f:
             f.write(md_gen.generate())
-        print(f"✓ Generisan Markdown: {args.md}", file=sys.stderr)
+        print(f"Generisan Markdown: {args.md}", file=sys.stderr)
 
     # 7. Generisanje HTML-a
     if args.html:
         html_gen = HTMLScheduleGenerator(ast, args.html, args.base_time, args.duration, args.slots_per_index)
         html_gen.generate()
-        print(f"✓ Generisani HTML fajlovi: {args.html}/", file=sys.stderr)
+        print(f"Generisani HTML fajlovi: {args.html}/", file=sys.stderr)
 
     # 8. Eksport (Refaktoring)
     if args.export:
