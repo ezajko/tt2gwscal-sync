@@ -75,8 +75,6 @@ class HTMLScheduleGenerator:
         # groups_data je već rječnik { 'Grupa': [events...] }, pa ga šaljemo direktno (bez _group_by)
         self._write_html("raspored_grupe.html", "Po Grupama", groups_data)
 
-        print(f"✓ Generisani HTML fajlovi u: {self.output_dir}/")
-
     def _generate_groups_view(self, raw_data):
         """Generiše mapu evenata za svaku grupu, uključujući naslijeđene evente od roditelja."""
 
