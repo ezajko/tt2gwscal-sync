@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 from .validator import validate_schedule
 
@@ -14,6 +15,7 @@ class Exporter:
             os.makedirs(self.defs_dir)
 
         # 1. Eksport Definicija
+        self._write_file(f"{self.defs_dir}/semestar.ras", self._gen_semester_defs())
         self._write_file(f"{self.defs_dir}/vrijeme.ras", self._gen_time_defs())
         self._write_file(f"{self.defs_dir}/nastavnici.ras", self._gen_teacher_defs())
         self._write_file(f"{self.defs_dir}/predmeti.ras", self._gen_subject_defs())
@@ -23,12 +25,14 @@ class Exporter:
         # 2. Validacija i Eksport Rasporeda
         valid, invalid = validate_schedule(self.schedule)
 
-        self._write_file(f"{self.output_dir}/raspored.ras", self._gen_assignments(valid, include_imports=True))
+        raspored_content = self._gen_assignments(valid, include_imports=True)
 
         if invalid:
             self._write_file(f"{self.output_dir}/nevalidno.ras", self._gen_invalid_assignments(invalid))
+            raspored_content += "\nUVEZI: nevalidno.ras\n"
             print(f"⚠ UPOZORENJE: Pronađeno {len(invalid)} nevalidnih unosa! Pogledajte 'nevalidno.ras'.")
 
+        self._write_file(f"{self.output_dir}/raspored.ras", raspored_content)
         print(f"✓ Eksportovano u: {self.output_dir}/")
 
     def _write_file(self, path, content):
@@ -46,6 +50,25 @@ class Exporter:
         return f"{prefix}{self._to_pascal(name)}"
 
     # --- Generators ---
+
+    def _gen_semester_defs(self):
+        info = self.schedule.semester_info
+        lines = ["// Konfiguracija Semestra"]
+        if info.get('name'):
+            name = info['name']
+            lines.append(f"{name} je semestar.")
+            if info.get('start_date'):
+                d = datetime.strptime(info['start_date'], "%Y-%m-%d").strftime("%d.%m.%Y")
+                lines.append(f"{name} pocinje {d}.")
+            if info.get('end_date'):
+                d = datetime.strptime(info['end_date'], "%Y-%m-%d").strftime("%d.%m.%Y")
+                lines.append(f"{name} zavrsava {d}.")
+            if info.get('duration_weeks'):
+                lines.append(f"{name} traje {info['duration_weeks']} sedmica.")
+            if info.get('holidays'):
+                h_dates = [datetime.strptime(h, "%Y%m%d").strftime("%d.%m.%Y") for h in info['holidays']]
+                lines.append(f"{name} ima nenastavne dane {', '.join(h_dates)}.")
+        return "\n".join(lines)
 
     def _gen_time_defs(self):
         lines = ["// Definicije Dana i Termina"]
@@ -90,6 +113,7 @@ class Exporter:
     def _gen_assignments(self, assignments, include_imports=False):
         lines = []
         if include_imports:
+            lines.append("UVEZI: definicije/semestar.ras")
             lines.append("UVEZI: definicije/vrijeme.ras")
             lines.append("UVEZI: definicije/nastavnici.ras")
             lines.append("UVEZI: definicije/predmeti.ras")
