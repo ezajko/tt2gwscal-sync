@@ -41,7 +41,8 @@ class JSONCalendarGenerator:
             "ponavljanje": {
                 "frekvencija": "WEEKLY",
                 "datum_kraj": self.end_date,
-                "interval": node.recurrence_interval
+                "interval": node.recurrence_interval,
+                "izuzeci": self.schedule.holidays
             }
         }
 

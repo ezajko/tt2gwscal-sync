@@ -38,9 +38,21 @@ class RoomDefinitionNode(ASTNode):
         self.name = name
 
 class SemesterDefinitionNode(ASTNode):
-    def __init__(self, start_date, end_date):
+    def __init__(self, start_date, end_date, name=None):
+        self.name = name
         self.start_date = start_date
         self.end_date = end_date
+
+class SemesterMetaNode(ASTNode):
+    def __init__(self, name, type, academic_year):
+        self.name = name
+        self.type = type
+        self.academic_year = academic_year
+
+class SemesterHolidaysNode(ASTNode):
+    def __init__(self, name, holidays):
+        self.name = name
+        self.holidays = holidays
 
 class AssignmentNode(ASTNode):
     def __init__(self, teachers, subject, type, groups, rooms, slots, frequency_hint=None, unknown_tokens=None, recurrence_interval=None):
@@ -65,8 +77,14 @@ class Schedule(ASTNode):
         self.subgroups = {}    # name -> StudySubGroupDefinitionNode
         self.rooms = {}     # name -> RoomDefinitionNode
         self.assignments = [] # List[AssignmentNode]
+
+        # Semester info
         self.start_date = None
         self.end_date = None
+        self.semester_name = None
+        self.semester_type = None
+        self.academic_year = None
+        self.holidays = []
 
     def add(self, node):
         if isinstance(node, DayDefinitionNode):
@@ -91,6 +109,13 @@ class Schedule(ASTNode):
         elif isinstance(node, SemesterDefinitionNode):
             self.start_date = node.start_date
             self.end_date = node.end_date
+            if node.name: self.semester_name = node.name
+        elif isinstance(node, SemesterMetaNode):
+            self.semester_name = node.name
+            self.semester_type = node.type
+            self.academic_year = node.academic_year
+        elif isinstance(node, SemesterHolidaysNode):
+            self.holidays.extend(node.holidays)
 
     def __repr__(self):
         return f"Schedule(days={len(self.days)}, slots={len(self.slots)}, teachers={len(self.teachers)}, subjects={len(self.subjects)}, study_groups={len(self.study_groups)}, subgroups={len(self.subgroups)}, rooms={len(self.rooms)}, assignments={len(self.assignments)})"

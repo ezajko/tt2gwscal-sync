@@ -129,6 +129,11 @@ def transform_event(termin, tipovi, prostorije, osobe_map):
         if termin['ponavljanje'].get('interval', 1) > 1:
             rrule += f";INTERVAL={termin['ponavljanje']['interval']}"
         ev['recurrence'] = [rrule]
+
+        if termin['ponavljanje'].get('izuzeci'):
+            exdates = [str(d).replace('-', '') for d in termin['ponavljanje']['izuzeci']]
+            if exdates:
+                ev['recurrence'].append(f"EXDATE;VALUE=DATE:{','.join(exdates)}")
     return ev
 
 def sync_category(args):

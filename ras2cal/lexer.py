@@ -19,14 +19,23 @@ class Lexer:
         ('JE_GRUPA',     r'\bje grupa odjeljenja\b'),
         ('JE_ODJELJENJE',r'\bje odjeljenje\b'),
         ('JE_PROSTORIJA',r'\bje prostorija\b'),
+        ('JE',           r'\bje\b'),                        # NOVO (mora biti poslije JE_...)
+        ('U',            r'\bu\b'),                         # NOVO
+        ('AKADEMSKOJ',   r'\bakademskoj\b'),                # NOVO
+        ('GODINI',       r'\bgodini\b'),                    # NOVO
+        ('KAO',          r'\bkao\b'),                       # NOVO
+        ('IMA',          r'\bima\b'),                       # NOVO
+        ('NENASTAVNE',   r'\bnenastavne\b'),                # NOVO
         ('SVAKE',        r'\bsvake\b'),                     # NOVO
         ('SEDMICE',      r'\bsedmice\b'),                   # NOVO
         ('DANA',         r'\bdana\b'),
+        ('DANE',         r'\bdane\b'),                      # NOVO
         ('SEMESTAR',     r'\bsemestar\b'),
         ('POCINJE',      r'\bpocinje\b'),
         ('ZAVRSAVA',     r'\bzavrsava\b'),
         ('I',            r'\bi\b'),
         ('DATE',         r'\d{2}\.\d{2}\.\d{4}'),
+        ('ACAD_YEAR_VAL',r'\d{4}/\d{4}'),                   # NOVO
         ('NUMBER',       r'\d+'),
         ('ID',           r'[\w\-/]+'),
         ('DOT',          r'\.'),
