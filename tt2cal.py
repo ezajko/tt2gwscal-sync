@@ -4,10 +4,12 @@ import sys
 from datetime import datetime, timedelta
 
 from ras2cal.generators import (
+    GridGenerator,
     HTMLScheduleGenerator,
     JSONScheduleGenerator,
     MarkdownReportGenerator,
 )
+from ras2cal.ir import LectureType
 from ras2cal.lexer import Lexer
 from ras2cal.parser import Parser
 from ras2cal.utils import filter_schedule, load_source_recursive
@@ -23,6 +25,7 @@ def main():
     parser.add_argument("-j", "--json", help="Putanja za JSON izlaz")
     parser.add_argument("-m", "--md", help="Putanja za Markdown izvještaj")
     parser.add_argument("-w", "--html", help="Direktorij za generisanje HTML izvještaja")
+    parser.add_argument("-g", "--grid", help="Direktorij za generisanje tradicionalnog grid HTML izvještaja")
     parser.add_argument("-e", "--export", help="Direktorij za eksport validiranog i refaktorisanog RAS koda")
 
     # Debug / Info
@@ -138,6 +141,9 @@ def main():
         print("\n--- DAYS ---", file=sys.stderr)
         for node in ast.days.values(): print(node, file=sys.stderr)
 
+        print("\n--- SLOTS ---", file=sys.stderr)
+        for node in ast.slots.values(): print(node, file=sys.stderr)
+
         print("\n--- TEACHERS ---", file=sys.stderr)
         for node in ast.teachers.values(): print(node, file=sys.stderr)
 
@@ -158,19 +164,32 @@ def main():
 
         print("=====================", file=sys.stderr)
 
-    # 5. Kompajliranje (IR)
-    from ras2cal.compiler import ScheduleCompiler
-    config = {
-        'start_date': semester_start,
-        'end_date': semester_end,
-        'name': semester_title,
-        'holidays': ast.holidays,
-        'base_time': args.base_time,
-        'slot_duration': args.duration,
-        'slots_per_index': args.slots_per_index
+    # 5. Postavljanje konfiguracije na AST
+    ast.base_time = args.base_time
+    ast.slot_duration = args.duration
+    ast.slots_per_index = args.slots_per_index
+    ast.default_types = {
+        "P": LectureType("P", "Predavanje", 0),
+        "V": LectureType("V", "Vježbe", 1),
+        "L": LectureType("L", "Laboratorijske vježbe", 2),
+        "T": LectureType("T", "Tutorijal", 3),
+        "N": LectureType("N", "Nepoznato", 9),
     }
-    compiler = ScheduleCompiler(ast, config)
+
+    # Set semester name if not already set
+    if not ast.semester_info.get('name'):
+        ast.semester_info['name'] = semester_title
+
+    # 6. Kompajliranje (IR)
+    from ras2cal.compiler import ScheduleCompiler
+    compiler = ScheduleCompiler(ast)
     ir_model = compiler.compile()
+
+    # Set configuration on model for generators (copied from AST)
+    ir_model.base_time = ast.base_time
+    ir_model.slot_duration = ast.slot_duration
+    ir_model.slots_per_index = ast.slots_per_index
+    ir_model.default_types = ast.default_types
 
     # 6. Generisanje JSON-a
     if args.json or args.stdout:
@@ -209,7 +228,13 @@ def main():
         html_gen.generate()
         print(f"Generisani HTML fajlovi: {args.html}/", file=sys.stderr)
 
-    # 9. Eksport (Refaktoring)
+    # 9. Generisanje grid HTML-a
+    if args.grid:
+        grid_gen = GridGenerator(ir_model, args.grid, title=semester_title)
+        grid_gen.generate()
+        print(f"Generisan grid HTML: {args.grid}/", file=sys.stderr)
+
+    # 10. Eksport (Refaktoring)
     if args.export:
         from ras2cal.exporter import Exporter
         exporter = Exporter(ast, args.export)
