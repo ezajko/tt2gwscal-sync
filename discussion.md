@@ -1,4 +1,4 @@
-# Analiza i Proširenje Domenski Specifičnog Jezika za Opis Akademskih Rasporeda
+# Analiza i proširenje domenski specifičnog jezika za opis akademskih rasporeda
 
 **Autor:** Ernedin Zajko  
 **Kontakt:** ezajko@root.ba  
@@ -13,24 +13,26 @@
 3. [Domenski specifični jezici](#3-domenski-specifični-jezici)
 4. [Arhitektura transpilera](#4-arhitektura-transpilera)
 5. [Formalna specifikacija RAS jezika](#5-formalna-specifikacija-ras-jezika)
-6. [Prosirenje 1: UVEZI — Modularni import sistem](#6-prosirenje-1-uvezi--modularni-import-sistem)
-7. [Prosirenje 2: Semestar — Temporalna konfiguracija](#7-prosirenje-2-semestar--temporalna-konfiguracija)
-8. [Prosirenje 3: Tipovi nastave — Konfiguracijski entiteti](#8-prosirenje-3-tipovi-nastave--konfiguracijski-entiteti)
+6. [Proširenje 1: UVEZI — Modularni import sistem](#6-proširenje-1-uvezi--modularni-import-sistem)
+7. [Proširenje 2: Semestar — Temporalna konfiguracija](#7-proširenje-2-semestar--temporalna-konfiguracija)
+8. [Proširenje 3: Tipovi nastave — Konfiguracijski entiteti](#8-proširenje-3-tipovi-nastave--konfiguracijski-entiteti)
 9. [Hijerarhija konfiguracije](#9-hijerarhija-konfiguracije)
 10. [Implementacija kompajlerskog pipeline-a](#10-implementacija-kompajlerskog-pipeline-a)
-11. [Validacija i eksport](#11-validacija-i-eksport)
-12. [Zaključak](#12-zaključak)
-13. [Reference](#13-reference)
+11. [Generatori izlaznih formata](#11-generatori-izlaznih-formata)
+12. [Validacija i eksport](#12-validacija-i-eksport)
+13. [Refaktoring i principi kvaliteta koda](#13-refaktoring-i-principi-kvaliteta-koda)
+14. [Zaključak](#14-zaključak)
+15. [Reference](#15-reference)
 
 ---
 
 ## 1. Uvod
 
-Upravljanje akademskim rasporedima na visokoškolskim institucijama predstavlja izazov koji kombinuje složena ograničenja resursa (nastavnici, prostorije, grupe studenata) sa vremenskim koordinatama (dani, termini, sedmice). Postojeći pristupi koriste tabelarne editore (Excel, Google Sheets) ili specijalizirane grafičke aplikacije, ali ovi alati imaju ograničenja u pogledu verzioniranja, automatizacije i integracije sa kalendarskim servisima.
+Upravljanje akademskim rasporedima na visokoškolskim institucijama predstavlja izazov koji kombinuje složena ograničenja resursa (nastavnici, prostorije, grupe studenata) sa vremenskim koordinatama (dani, termini, sedmice). Postojeći pristupi koriste tabelarne editore (Excel, Google Sheets) ili specijalizovane grafičke aplikacije, ali ti alati imaju ograničenja u pogledu verzioniranja, automatizacije i integracije sa kalendarskim servisima.
 
-Ovaj rad predstavlja **RAS** (Raspored Alokacija Resursa) — domenski specifični jezik (DSL) dizajniran za deklarativno opisivanje akademskih rasporeda, zajedno sa **tt2cal** transpilerom koji RAS kod prevodi u strukturirane izlazne formate (JSON, HTML, Markdown). Poseban fokus je na tri proširenja jezika koja su uvedena kako bi se riješili praktični problemi: modularni import (`UVEZI`), temporalna konfiguracija (`Semestar`) i eksplicitna definicija tipova nastave (`LectureType`).
+Ovaj rad predstavlja **RAS** (*Raspored Alokacija Resursa*) — domenski specifični jezik (DSL) dizajniran za deklarativno opisivanje akademskih rasporeda, zajedno sa **tt2cal** transpilerom koji RAS kod prevodi u strukturirane izlazne formate (JSON, HTML, Markdown). Poseban fokus je na tri proširenja jezika koja su uvedena kako bi se riješili praktični problemi: modularni import (`UVEZI`), temporalna konfiguracija (`Semestar`) i eksplicitna definicija tipova nastave (`LectureType`).
 
-Rad je organizovan na sljedeći način: Poglavlje 2 opisuje motivaciju i kontekst problema. Poglavlje 3 daje pregled domenski specifičnih jezika. Poglavlja 4 i 5 opisuju arhitekturu transpilera i formalnu specifikaciju jezika. Poglavlja 6, 7 i 8 detaljno analiziraju svako od tri proširenja. Poglavlje 9 objašnjava hijerarhiju konfiguracije. Poglavlje 10 opisuje implementaciju kompajlerskog pipeline-a. Poglavlje 11 pokriva validaciju i eksport, a Poglavlje 12 donosi zaključak.
+Rad je organizovan na sljedeći način: poglavlje 2 opisuje motivaciju i kontekst problema; poglavlje 3 daje pregled domenski specifičnih jezika; poglavlja 4 i 5 opisuju arhitekturu transpilera i formalnu specifikaciju jezika; poglavlja 6, 7 i 8 detaljno analiziraju svako od tri proširenja; poglavlje 9 objašnjava hijerarhiju konfiguracije; poglavlje 10 opisuje implementaciju kompajlerskog pipeline-a; poglavlje 11 pokriva generatore izlaznih formata; poglavlje 12 obrađuje validaciju i eksport; poglavlje 13 diskutuje principe refaktoringa i kvaliteta koda; konačno, poglavlje 14 donosi zaključak.
 
 ---
 
@@ -41,7 +43,7 @@ Rad je organizovan na sljedeći način: Poglavlje 2 opisuje motivaciju i konteks
 Akademski raspored na Elektrotehničkom fakultetu Univerziteta u Sarajevu (ETF UNSA) obuhvata stotine nastavnih jedinica raspoređenih po pet radnih dana, sa desecima nastavnika, prostorija i studentskih grupa. Svaki semestar zahtijeva kreiranje, ažuriranje i distribuciju rasporeda u više formata:
 
 - **Tabelarni prikaz** za fizičko oglašavanje
-- **Kalendarski događaji** za sinhronizaciju sa Google Workspace
+- **Kalendarski događaji** za sinhronizaciju sa Google Workspace-om
 - **Filtrirani pogledi** za pojedinačne nastavnike ili grupe
 
 ### 2.2 Ograničenja postojećih pristupa
@@ -51,11 +53,11 @@ Tabelarni alati (Excel, Google Sheets) nude vizualnu preglednost, ali pate od:
 - **Nedostatka verzioniranja**: Promjene se ne mogu pratiti kroz git historiju
 - **Ručne konverzije**: Prebacivanje iz tabele u kalendar zahtijeva manuelni rad
 - **Nefleksibilnog filtriranja**: Ekstrakcija rasporeda za jednog nastavnika zahtijeva ručno kopiranje
-- **Duplikacija podataka**: Isti raspored se održava u više formata nezavisno
+- **Duplikacije podataka**: Isti raspored se održava u više formata nezavisno
 
 ### 2.3 Predloženo rješenje
 
-RAS jezik i tt2cal transpiler rješavaju navedene probleme uvođenjem "jednog izvora istine" (single source of truth) — tekstualnog fajla koji se može verzionirati, automatski transformisati i filtrirati. Jedan `.ras` fajl generiše sve potrebne izlazne formate.
+RAS jezik i tt2cal transpiler rješavaju navedene probleme uvođenjem „jednog izvora istine" (*single source of truth*) — tekstualnog fajla koji se može verzionirati, automatski transformisati i filtrirati. Jedan `.ras` fajl generiše sve potrebne izlazne formate.
 
 ```mermaid
 graph LR
@@ -65,7 +67,7 @@ graph LR
     B --> E["Markdown"]
     B --> F["Grid HTML"]
     B --> G["Eksport RAS"]
-    C --> H["Google Calendar<br/>Sync"]
+    C --> H["Google Calendar<br/>sinhronizacija"]
 ```
 
 ---
@@ -74,26 +76,26 @@ graph LR
 
 ### 3.1 Definicija
 
-Domenski specifični jezik (Domain-Specific Language, DSL) je programski jezik ograničenog opsega, dizajniran za specifičnu problemsku domenu. Za razliku od jezika opće namjene (General-Purpose Languages, GPL) kao što su Python ili Java, DSL-ovi žrtvuju generalnost u korist ekspresivnosti i čitljivosti unutar svoje domene [1].
+Domenski specifični jezik (*Domain-Specific Language*, DSL) je programski jezik ograničenog opsega, dizajniran za specifičnu problemsku domenu. Za razliku od jezika opće namjene (*General-Purpose Language*, GPL) kao što su Python ili Java, DSL-ovi žrtvuju generalnost u korist ekspresivnosti i čitljivosti unutar svoje domene [1].
 
 ### 3.2 Klasifikacija
 
 DSL-ovi se klasificiraju na:
 
-- **Interni DSL-ovi**: Implementirani kao biblioteke unutar host jezika (npr. SQLAlchemy u Pythonu)
-- **Eksterni DSL-ovi**: Imaju vlastitu sintaksu i zahtijevaju dedicirani parser (npr. SQL, CSS, RAS)
+- **Interni DSL-ovi**: implementirani kao biblioteke unutar host-jezika (npr. SQLAlchemy u Pythonu)
+- **Eksterni DSL-ovi**: imaju vlastitu sintaksu i zahtijevaju dedicirani parser (npr. SQL, CSS, RAS)
 
-RAS pripada kategoriji **eksternih DSL-ova** sa deklarativnom paradigmom — korisnik opisuje *šta* raspored sadrži, a ne *kako* ga konstruisati.
+RAS pripada kategoriji **eksternih DSL-ova** sa deklarativnom paradigmom — korisnik opisuje *šta* raspored sadrži, ne *kako* ga konstruisati.
 
 ### 3.3 Prednosti DSL pristupa za rasporede
 
 | Aspekt | Tabelarni pristup | DSL pristup (RAS) |
-| :--- | :--- | :--- |
-| Verzioniranje | Ograničeno (binarni formati) | Git-kompatibilno (tekstualni fajlovi) |
-| Automatizacija | Ručne skripte | Ugrađen transpiler |
-| Modularnost | Jedan fajl | UVEZI direktive |
-| Validacija | Manuelna | Automatizirana |
-| Filtriranje | Ručno | Regex-bazirano (CLI) |
+|:---|:---|:---|
+| Verzioniranje | ograničeno (binarni formati) | Git-kompatibilno (tekstualni fajlovi) |
+| Automatizacija | ručne skripte | ugrađen transpiler |
+| Modularnost | jedan fajl | UVEZI direktive |
+| Validacija | manuelna | automatizovana |
+| Filtriranje | ručno | regex-bazirano (CLI) |
 
 ---
 
@@ -105,7 +107,7 @@ tt2cal transpiler koristi klasičnu višefaznu arhitekturu kompajlera, adaptiran
 
 ```mermaid
 graph TD
-    subgraph "Frontend (Analiza)"
+    subgraph "Frontend (analiza)"
         A["Izvorni .ras kod"] --> B["Lexer<br/><small>leksička analiza</small>"]
         B --> C["Niz tokena"]
         C --> D["Parser<br/><small>sintaksna analiza</small>"]
@@ -118,7 +120,7 @@ graph TD
         G --> H["Obogaćeni AST"]
     end
 
-    subgraph "Backend (Transformacija)"
+    subgraph "Backend (transformacija)"
         H --> I["Compiler<br/><small>semantička analiza</small>"]
         I --> J["IR<br/><small>Intermediate Representation</small>"]
         J --> K["Generatori"]
@@ -143,23 +145,23 @@ Lexer pretvara sirovi tekst u niz tokena koristeći regularne izraze. Svaki toke
 
 **Faza 2 — Sintaksna analiza (Parser)**
 
-Parser konzumira niz tokena i gradi AST (Abstract Syntax Tree) — hijerarhijsku strukturu koja predstavlja značenje izvornog koda. Korijeni čvor je `Schedule` koji agregira sve definicije i iskaze nastave.
+Parser konzumira niz tokena i gradi AST (*Abstract Syntax Tree*) — hijerarhijsku strukturu koja predstavlja značenje izvornog koda. Korijenski čvor je `Schedule` koji agregira sve definicije i iskaze nastave. Za neprepoznate tokene, parser ispisuje upozorenje na `stderr` sa brojem linije i vrijednošću tokena, čime se olakšava dijagnostika grešaka u `.ras` fajlovima.
 
 **Faza 3 — Konfiguracija i merge**
 
-tt2cal.py postavlja konfiguracijske vrijednosti na AST objekat (vrijeme termina, tipovi nastave, datumi semestra). Ova faza implementira hijerarhiju prioriteta između različitih izvora konfiguracije.
+`tt2cal.py` postavlja konfiguracijske vrijednosti na AST objekat (vrijeme termina, tipovi nastave, datumi semestra). Ova faza implementira hijerarhiju prioriteta između različitih izvora konfiguracije (v. poglavlje 9).
 
 **Faza 4 — Kompajliranje (AST → IR)**
 
-Compiler razrješava reference (slot ID-ovi → konkretna vremena, imena → entiteti sa atributima) i generiše IR (Intermediate Representation) — obogaćeni model sa potpuno razriješenim podacima.
+Compiler razrješava reference (slot ID-ovi → konkretna vremena, imena → entiteti sa atributima) i generiše IR (*Intermediate Representation*) — obogaćeni model sa potpuno razriješenim podacima.
 
 **Faza 5 — Generisanje izlaza**
 
-Generatori čitaju iz IR modela i produciraju konačne izlazne formate.
+Generatori čitaju iz IR modela i produciraju konačne izlazne formate (v. poglavlje 11).
 
 ### 4.3 Razdvajanje odgovornosti
 
-Ključni arhitekturalni princip je strogo razdvajanje između **jezika** (ras2cal modul) i **konfiguracije** (tt2cal.py):
+Ključni arhitekturalni princip je strogo razdvajanje između **jezika** (modul `ras2cal/`) i **konfiguracije** (`tt2cal.py`):
 
 ```mermaid
 graph LR
@@ -193,13 +195,13 @@ Modul `ras2cal/` ne sadrži nikakve podrazumijevane vrijednosti — sve dolazi o
 RAS jezik koristi sljedeće kategorije tokena:
 
 | Kategorija | Primjeri | Opis |
-| :--- | :--- | :--- |
-| Ključne riječi | `predaje`, `odjeljenju`, `prostoriji` | Fiksne riječi jezika |
-| Definicijski iskazi | `je nastavnik`, `je predmet`, `je dan broj` | Složene ključne fraze |
-| Identifikatori | `PO1`, `ElmedinSelmanovic`, `RI1-1a` | Proizvoljni nazivi entiteta |
-| Literali | `42`, `01.10.2025` | Brojevi i datumi |
-| Interpunkcija | `.` | Terminator iskaza |
-| Komentari | `// komentar`, `/* blok */` | Ignorisani od lexera |
+|:---|:---|:---|
+| Ključne riječi | `predaje`, `odjeljenju`, `prostoriji` | fiksne riječi jezika |
+| Definicijski iskazi | `je nastavnik`, `je predmet`, `je dan broj` | složene ključne fraze |
+| Identifikatori | `PO1`, `ElmedinSelmanovic`, `RI1-1a` | proizvoljni nazivi entiteta |
+| Literali | `42`, `01.10.2025` | brojevi i datumi |
+| Interpunkcija | `.` | terminator iskaza |
+| Komentari | `// komentar`, `/* blok */` | ignorisani od lexera |
 
 Lexer koristi regex-bazirani pristup sa prioritetnim redom pravila:
 
@@ -213,7 +215,7 @@ RULES = [
 ]
 ```
 
-Redoslijed pravila je kritičan: duži obrasci moraju prethoditi kraćim. Na primjer, `je tip nastave` mora biti definirano prije `je`, inače bi lexer matchovao samo `je` i prekinuo parsiranje iskaza.
+Redoslijed pravila je kritičan: duži obrasci moraju prethoditi kraćim. Na primjer, `je tip nastave` mora biti definisano prije `je`, inače bi lexer prepoznao samo `je` i prekinuo parsiranje iskaza.
 
 ### 5.2 EBNF gramatika
 
@@ -255,9 +257,9 @@ import_dir     = "UVEZI:" PATH ;
 ### 5.3 Semantička pravila
 
 1. **Entiteti se definišu prije upotrebe** — nastavnik, predmet, prostorija i grupa moraju biti deklarisani prije korištenja u iskazu nastave. Ukoliko nisu, validator ih označava kao nevalidne.
-2. **Predmeti koriste prefiks za tip nastave** — prvi karakter identifikatora predmeta određuje tip: `p` = Predavanje, `v` = Vježbe, `l` = Lab, `t` = Tutorijal.
+2. **Predmeti koriste prefiks za tip nastave** — prvi karakter identifikatora predmeta označava tip: `p` = predavanje, `v` = vježbe, `l` = laboratorijske vježbe, `t` = tutorijal.
 3. **Slotovi se referišu po ID-u** — svaki slot mora biti prethodno definisan sa danom i rednim brojem.
-4. **CamelCase se automatski formatira** — identifikator `ElmedinSelmanovic` se prikazuje kao "Elmedin Selmanovic" u izlazu.
+4. **CamelCase se automatski formatira** — identifikator `ElmedinSelmanovic` se prikazuje kao „Elmedin Selmanovic" u izlazu. Funkcija `format_camel_case` (ranije `format_person_name`) obavlja ovu konverziju generički — za imena nastavnika, nazive predmeta i tipova nastave.
 
 ---
 
@@ -267,14 +269,14 @@ import_dir     = "UVEZI:" PATH ;
 
 Akademski raspored za jedan fakultet može sadržavati stotine definicija entiteta (nastavnici, predmeti, prostorije) i stotine iskaza nastave. Držanje svega u jednom fajlu donosi praktične probleme:
 
-- **Preglednost**: Fajl od 1000+ linija je teško navigirati
-- **Tim rad**: Više osoba ne može paralelno raditi na istom fajlu bez konflikata
-- **Ponovna upotreba**: Definicije entiteta (nastavnici, prostorije) su iste iz semestra u semestar, ali se raspored mijenja. Bez modularnosti, definicije se moraju kopirati.
-- **Organizacija**: Prirodna struktura podataka (definicije vs. raspored) se gubi u jednom dugačkom fajlu
+- **Preglednost**: fajl od 1000+ linija je teško navigirati
+- **Timski rad**: više osoba ne može paralelno raditi na istom fajlu bez konflikata
+- **Ponovna upotreba**: definicije entiteta (nastavnici, prostorije) su iste iz semestra u semestar, ali se raspored mijenja — bez modularnosti, definicije se moraju kopirati
+- **Organizacija**: prirodna struktura podataka (definicije nasuprot rasporedu) se gubi u jednom dugačkom fajlu
 
 ### 6.2 Dizajn rješenja
 
-Uveden je `UVEZI` mehanizam — direktiva koja se obrađuje na nivou učitavanja izvornog koda, prije leksičke analize:
+Uveden je UVEZI mehanizam — direktiva koja se obrađuje na nivou učitavanja izvornog koda, prije leksičke analize:
 
 ```text
 UVEZI: definicije/nastavnici.ras
@@ -288,11 +290,11 @@ VedranLjubovic predaje pRazvojSoftvera odjeljenju RI tacno u terminu PO1 PO1A.
 UVEZI direktiva funkcioniše slično `#include` direktivi u C jeziku ili `import` u Pythonu, ali sa bitnim razlikama:
 
 | Aspekt | C `#include` | Python `import` | RAS `UVEZI` |
-| :--- | :--- | :--- | :--- |
-| Faza obrade | Preprocesor | Runtime | Pre-leksička |
-| Namespace | Globalni | Modularni | Globalni |
-| Kružna zaštita | Header guards | Automatska | Detekcija + upozorenje |
-| Relativne putanje | Da | Da (paketi) | Da |
+|:---|:---|:---|:---|
+| Faza obrade | preprocesor | runtime | pre-leksička |
+| Namespace | globalni | modularni | globalni |
+| Kružna zaštita | header guards | automatska | detekcija + upozorenje |
+| Relativne putanje | da | da (paketi) | da |
 
 ### 6.3 Implementacija
 
@@ -314,36 +316,41 @@ def load_source_recursive(file_path, seen=None):
     combined_lines = []
     base_dir = os.path.dirname(file_path)
 
-    with open(file_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            match = re.match(r'^\s*UVEZI:\s*(.+)\s*$', line)
-            if match:
-                import_path = match.group(1).strip()
-                full_path = os.path.join(base_dir, import_path)
-                imported = load_source_recursive(full_path, seen)
-                combined_lines.append(imported)
-            else:
-                combined_lines.append(line)
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                match = re.match(r'^\s*UVEZI:\s*(.+)\s*$', line)
+                if match:
+                    import_path = match.group(1).strip()
+                    full_path = os.path.join(base_dir, import_path)
+                    imported = load_source_recursive(full_path, seen)
+                    combined_lines.append(imported)
+                else:
+                    combined_lines.append(line)
+    except FileNotFoundError:
+        print(f"Greška: Fajl '{file_path}' nije pronađen.")
+        sys.exit(1)
 
     return "".join(combined_lines)
 ```
 
 Ključne karakteristike implementacije:
 
-1. **Rekurzivno razrješavanje**: UVEZI direktive u importovanim fajlovima se također razrješavaju
-2. **Detekcija ciklusa**: Skup `seen` prati apsolutne putanje već učitanih fajlova, sprječavajući beskonačnu rekurziju
-3. **Relativne putanje**: Putanja u UVEZI direktivi je relativna u odnosu na fajl koji sadrži direktivu, ne u odnosu na radni direktorij
+1. **Rekurzivno razrješavanje**: UVEZI direktive u importovanim fajlovima se également razrješavaju
+2. **Detekcija ciklusa**: skup `seen` prati apsolutne putanje već učitanih fajlova i sprječava beskonačnu rekurziju
+3. **Relativne putanje**: putanja u UVEZI direktivi je relativna u odnosu na fajl koji sadrži direktivu, ne u odnosu na radni direktorij
+4. **Robusnost**: nepostojanje fajla se obrađuje putem `try/except`, bez redundantnih provjera
 
 ### 6.4 Tok obrade
 
 ```mermaid
 graph TD
     A["raspored.ras"] -->|"čitaj liniju po liniju"| B{"UVEZI?"}
-    B -->|"Ne"| C["Dodaj u buffer"]
-    B -->|"Da"| D["Razriješi putanju"]
+    B -->|"ne"| C["Dodaj u buffer"]
+    B -->|"da"| D["Razriješi putanju"]
     D --> E{"Već učitan?"}
-    E -->|"Da"| F["Preskoči<br/><small>(kružni import)</small>"]
-    E -->|"Ne"| G["Označi kao učitan"]
+    E -->|"da"| F["Preskoči<br/><small>(kružni import)</small>"]
+    E -->|"ne"| G["Označi kao učitan"]
     G --> H["Rekurzivno učitaj"]
     H --> B
     C --> I["Spojeni tekst"]
@@ -381,7 +388,7 @@ Originalni RAS jezik opisivao je samo *strukturu* rasporeda — ko predaje šta 
 - **Datum kraja** ili trajanje u sedmicama
 - **Nenastavni dani** (državni praznici, fakultetski slobodni dani)
 
-Bez ovih podataka, transpiler ne može izračunati konkretne datume za RRULE (recurrence rule) u kalendarskim događajima, niti filtrirati praznike kao izuzetke (EXDATE).
+Bez ovih podataka, transpiler ne može izračunati konkretne datume za RRULE (*recurrence rule*) u kalendarskim događajima, niti filtrirati praznike kao izuzetke (EXDATE).
 
 ### 7.2 Dizajn rješenja
 
@@ -397,10 +404,10 @@ Proširenje uvodi pet novih iskaza:
 
 Dizajnerske odluke:
 
-1. **Deklarativna forma**: Semestar se deklariše kao entitet (`je semestar`), a zatim mu se dodjeljuju atributi — konzistentno sa ostatkom jezika
-2. **Alternativni kraj**: Korisnik može specificirati ili `zavrsava` ili `traje N sedmica`, ali ne mora oba. Transpiler izračunava nedostajuću vrijednost.
-3. **Naziv kao identifikator kalendara**: Naziv semestra (npr. `ZimskiSemestar2025`) se automatski formatira u čitak oblik ("Zimski Semestar 2025") i koristi kao naziv Google kalendara
-4. **Lokalizirani datumi**: Format datuma je `DD.MM.YYYY` (europski standard), ne američki `MM/DD/YYYY`
+1. **Deklarativna forma**: semestar se deklariše kao entitet (`je semestar`), a zatim mu se dodjeljuju atributi — konzistentno sa ostatkom jezika
+2. **Alternativni kraj**: korisnik može specificirati ili `zavrsava` ili `traje N sedmica`, ali ne mora oba; transpiler izračunava nedostajuću vrijednost
+3. **Naziv kao identifikator kalendara**: naziv semestra (npr. `ZimskiSemestar2025`) se automatski formatira u čitljiv oblik („Zimski Semestar 2025") i koristi kao naziv Google kalendara
+4. **Lokalizovani datumi**: format datuma je `DD.MM.YYYY` (evropski standard), ne američki `MM/DD/YYYY`
 
 ### 7.3 Implementacija
 
@@ -418,7 +425,7 @@ Na nivou lexera, dodani su novi tokeni:
 ('DATE',          r'\d{2}\.\d{2}\.\d{4}'),
 ```
 
-Na nivou parsera, svaki atribut semestra se mapira na svoj AST čvor:
+Na nivou parsera, svaki atribut semestra se mapira na poseban AST čvor:
 
 ```python
 class SemesterDefinitionNode(ASTNode):
@@ -427,18 +434,18 @@ class SemesterDefinitionNode(ASTNode):
         self.name = name
 
 class SemesterAttributeNode(ASTNode):
-    """Atribut semestra: pocetak, kraj, trajanje, nenastavni dani."""
+    """Atribut semestra: početak, kraj, trajanje, nenastavni dani."""
     def __init__(self, semester_name, attr_type, value):
         self.semester_name = semester_name
         self.attr_type = attr_type   # 'start', 'end', 'duration', 'holidays'
         self.value = value
 ```
 
-`Schedule` (korijenski AST čvor) konsolidira sve atribute u `SemesterInfo` objekat — specijaliziran `dict` sa čitljivim `__repr__`:
+`Schedule` (korijenski AST čvor) konsolidira sve atribute u `SemesterInfo` objekat — specijalizovani `dict` sa čitljivim `__repr__`:
 
 ```python
 class SemesterInfo(dict):
-    """Rjecnik sa semestralnim meta-podacima koji se ispisuje kao AST cvor."""
+    """Rječnik sa semestralnim metapodacima koji se ispisuje kao AST čvor."""
     def __repr__(self):
         parts = [f"{k}={v!r}" for k, v in self.items()]
         return f"SemesterInfo({', '.join(parts)})"
@@ -481,11 +488,11 @@ if not semester_start:
 Razriješeni semestralni parametri propagiraju se kroz cijeli pipeline:
 
 | Parametar | Korištenje |
-| :--- | :--- |
-| `start_date` | Kalkulacija datuma prvog pojavljivanja eventa |
+|:---|:---|
+| `start_date` | kalkulacija datuma prvog pojavljivanja eventa |
 | `end_date` | RRULE `UNTIL` parametar za ponavljanje |
 | `holidays` | RRULE `EXDATE` parametar (izuzetak od ponavljanja) |
-| `name` | Naziv kalendara u JSON meta-podacima |
+| `name` | naziv kalendara u JSON metapodacima |
 
 ---
 
@@ -493,11 +500,11 @@ Razriješeni semestralni parametri propagiraju se kroz cijeli pipeline:
 
 ### 8.1 Motivacija
 
-U originalnom dizajnu, tipovi nastave (Predavanje, Vježbe, Lab, Tutorijal) bili su hardkodirani u kodu transpilera. Ovo je donosilo tri problema:
+U originalnom dizajnu, tipovi nastave (predavanje, vježbe, laboratorijske vježbe, tutorijal) bili su hardkodirani u kodu transpilera. Ovo je donosilo tri problema:
 
-1. **Nefleksibilnost**: Dodavanje novog tipa (npr. "Seminar", "Praksa") zahtijevalo je izmjenu Python koda
-2. **Nekonzistentnost**: Nazivi tipova bili su raspršeni po više modula (`md_gen.py`, `html_gen.py`, `compiler.py`)
-3. **Nemogućnost prilagodbe**: Različiti fakulteti koriste različite nazive i prioritete tipova nastave
+1. **Nefleksibilnost**: dodavanje novog tipa (npr. „Seminar", „Praksa") zahtijevalo je izmjenu Python koda
+2. **Nekonzistentnost**: nazivi tipova bili su raspršeni po više modula (`md_gen.py`, `html_gen.py`, `compiler.py`)
+3. **Nemogućnost prilagodbe**: različiti fakulteti koriste različite nazive i prioritete tipova nastave
 
 ### 8.2 Dizajn rješenja
 
@@ -513,12 +520,12 @@ T je tip nastave Tutorijal prioriteta 3.
 Svaki tip nastave ima tri atributa:
 
 | Atribut | Opis | Primjer |
-| :--- | :--- | :--- |
-| **Kod** | Kratki identifikator (jedno slovo) | `P`, `V`, `L` |
-| **Naziv** | Čitljivi naziv (CamelCase → razmak) | `Predavanje` |
-| **Prioritet** | Redoslijed prikaza (manji = važniji) | `0` |
+|:---|:---|:---|
+| **Kod** | kratki identifikator (jedno slovo) | `P`, `V`, `L` |
+| **Naziv** | čitljivi naziv (CamelCase → razmak) | `Predavanje` |
+| **Prioritet** | redoslijed prikaza (manji = važniji) | `0` |
 
-Prioritet je ključni koncept: određuje redoslijed u tabeli tipova, sortiranje u HTML izlazu, i vizualni naglasak u CSS stilovima.
+Prioritet je ključni koncept: određuje redoslijed u tabeli tipova, sortiranje u HTML izlazu i vizualni naglasak u CSS stilovima.
 
 ### 8.3 Implementacija
 
@@ -544,7 +551,7 @@ class LectureTypeDefinitionNode(ASTNode):
 
 #### Konfiguracijski objekat
 
-`LectureType` je definisan kao frozen dataclass koji se dijeli između AST i IR nivoa:
+`LectureType` je definisan kao *frozen dataclass* koji se dijeli između AST i IR nivoa:
 
 ```python
 @dataclass(frozen=True)
@@ -558,7 +565,7 @@ class LectureType:
         return f"tag-{self.code}"
 ```
 
-Odluka da se `LectureType` definira u `models.py` (AST nivo), a ne u `ir.py` (IR nivo), je namjerna — tipovi nastave se koriste i na AST nivou (za merge konfiguracije) i na IR nivou (za generisanje izlaza).
+Odluka da se `LectureType` definira u `models.py` (AST nivo), a ne u `ir.py` (IR nivo), je namjerna — tipovi nastave se koriste i na AST nivou (za merge konfiguracije) i na IR nivou (za generisanje izlaza). CSS klasa koristi jedinstven prefiks `tag-` koji je konzistentan u svim generatorima (HTML i Grid).
 
 ### 8.4 Merge logika
 
@@ -578,11 +585,11 @@ Algoritam:
 # 1. Počni sa defaultima
 merged_types = dict(LECTURE_TYPES)
 
-# 2. .ras definicije override-aju defaults
+# 2. .ras definicije override-uju defaults
 for code, node in ast.lecture_types.items():
     merged_types[code] = LectureType(code, node.name, node.priority)
 
-# 3. Nedefinirani tipovi dobijaju generički fallback
+# 3. Nedefinisani tipovi dobijaju generički fallback
 for subj in ast.subjects.values():
     for t_code in subj.types:
         if t_code not in merged_types:
@@ -590,21 +597,21 @@ for subj in ast.subjects.values():
 ```
 
 Ova trostepena logika osigurava da:
-- Korisnik koji ne definiše tipove dobija razumne podrazumijevane vrijednosti
-- Korisnik koji eksplicitno definiše tip ima potpunu kontrolu
-- Nepoznati tipovi (greške u unosu) ne ruše transpiler, već dobijaju generički prioritet 99
+- korisnik koji ne definiše tipove dobija razumne podrazumijevane vrijednosti
+- korisnik koji eksplicitno definiše tip ima potpunu kontrolu
+- nepoznati tipovi (greške u unosu) ne ruše transpiler, već dobijaju generički prioritet 99
 
 ### 8.5 Upotreba u generatorima
 
 Tipovi nastave se koriste na više mjesta:
 
 | Generator | Upotreba tipa |
-| :--- | :--- |
+|:---|:---|
 | HTML | CSS klasa (`tag-P`, `tag-V`, ...) za vizualno razlikovanje |
-| Grid | Boja ćelije u tabelarnom prikazu |
-| Markdown | Labela u izvještaju (`Tip: Predavanje`) |
-| JSON | Kod tipa u event objektu |
-| Eksport | Generisanje `tipovi.ras` sa EBNF-kompatibilnim iskazima |
+| Grid | boja ćelije u tabelarnom prikazu |
+| Markdown | labela u izvještaju (`Tip: Predavanje`) |
+| JSON | kod tipa u event objektu |
+| Eksport | generisanje `tipovi.ras` sa EBNF-kompatibilnim iskazima |
 
 ---
 
@@ -614,11 +621,11 @@ Tipovi nastave se koriste na više mjesta:
 
 Transpiler mora podržavati tri scenarija korištenja sa različitim nivoima kontrole:
 
-1. **Minimalni ulaz**: Korisnik daje samo raspored, sve ostalo je automatski
-2. **CLI konfiguracija**: Korisnik specificira datume i parametre pri pokretanju
-3. **Potpuna kontrola**: Korisnik definiše sve u .ras fajlu
+1. **Minimalni ulaz**: korisnik daje samo raspored, sve ostalo je automatski
+2. **CLI konfiguracija**: korisnik specificira datume i parametre pri pokretanju
+3. **Potpuna kontrola**: korisnik definiše sve u `.ras` fajlu
 
-### 9.2 Rješenje: Troslojna hijerarhija
+### 9.2 Rješenje: troslojna hijerarhija
 
 ```mermaid
 graph BT
@@ -632,10 +639,10 @@ graph BT
 
 Svaki viši sloj override-uje niži. Na primjer:
 
-| Parametar | Default (Sloj 1) | CLI (Sloj 2) | .ras (Sloj 3) | Konačno |
-| :--- | :--- | :--- | :--- | :--- |
+| Parametar | Default (sloj 1) | CLI (sloj 2) | .ras (sloj 3) | Konačno |
+|:---|:---|:---|:---|:---|
 | Početak | 01.10.2025 | `--semestar-start 24.02.` | `pocinje 01.03.` | **01.03.** |
-| Tip "P" | Predavanje, prio=0 | — | `prioriteta 5` | **prio=5** |
+| Tip „P" | Predavanje, prio=0 | — | `prioriteta 5` | **prio=5** |
 | base_time | 08:00 | `--base-time 09:00` | — | **09:00** |
 
 ### 9.3 Prikaz u AST debug modu
@@ -647,7 +654,8 @@ Korisnik može verificirati konačno stanje konfiguracije koristeći `-a` (AST) 
 Summary: Schedule(days=5, slots=130, teachers=141, ...)
 
 --- SEMESTER INFO ---
-SemesterInfo(name='Semestar2026', start_date='2026-10-01', end_date='2027-01-14', duration_weeks=15, holidays=[])
+SemesterInfo(name='Semestar2026', start_date='2026-10-01',
+             end_date='2027-01-14', duration_weeks=15, holidays=[])
 
 --- LECTURE TYPES (merged) ---
 LectureType(code='P', name='Predavanje', priority=0)
@@ -732,14 +740,14 @@ classDiagram
 IR je obogaćena verzija AST-a sa razriješenim referencama:
 
 | AST | IR | Razlika |
-| :--- | :--- | :--- |
-| `slot_id = "PO1"` | `start_time = "08:00"` | Vremena izračunata |
-| `teacher = "ImePrezime"` | `Person(id, name, email)` | Entitet sa atributima |
-| `groups = [["RI1-1"]]` | `Group(id, name, parent, subgroups)` | Hijerarhija |
-| `type = "P"` | `LectureType("P", "Predavanje", 0)` | Obogaćeni tip |
-| AssignmentNode | Event | Kompletni kalendarski događaj |
+|:---|:---|:---|
+| `slot_id = "PO1"` | `start_time = "08:00"` | vremena izračunata |
+| `teacher = "ImePrezime"` | `Person(id, name)` | entitet sa atributima |
+| `groups = [["RI1-1"]]` | `Group(id, name, parent, subgroups)` | hijerarhija |
+| `type = "P"` | `LectureType("P", "Predavanje", 0)` | obogaćeni tip |
+| `AssignmentNode` | `Event` | kompletni kalendarski događaj |
 
-Kompajler (`compiler.py`) gradi IR u tri koraka:
+Kompajler (`compiler.py`) pristupa AST-u direktno (bez posrednog `config` rječnika) i gradi IR u tri koraka:
 
 1. **`_build_lookups()`** — kreira rječnike za brz pristup: `people`, `rooms`, `groups`, `subjects`
 2. **Hijerarhija grupa** — povezuje roditelje i djecu (npr. RI1 → RI1-1a, RI1-1b)
@@ -785,74 +793,178 @@ Na primjer, ako semestar počinje u ponedjeljak (01.10.) i nastava je u srijedu:
 
 ---
 
-## 11. Validacija i eksport
+## 11. Generatori izlaznih formata
 
-### 11.1 Validator
+Svi generatori rade sa IR modelom (`ScheduleModel`), čime je ostvarena konzistentnost pipeline-a. Zajedničke operacije pripreme podataka (pretvaranje IR evenata u dict format i kondenzacija nastavnika) izdvojene su u `utils.py` kao funkcije `prepare_raw_data` i `condense_teachers`.
+
+### 11.1 JSON generator
+
+`JSONScheduleGenerator` generiše listu kalendarskih evenata u JSON formatu kompatibilnom sa `sync.py` skriptom za sinhronizaciju sa Google Workspace kalendarom. Svaki event sadrži: osobu, predmet, tip, grupe, datum, vrijeme, prostoriju, dodatne nastavnike i podatke o ponavljanju (RRULE).
+
+Izlaz se koristi kao ulaz za sinhronizacijsku skriptu koja kreira ili ažurira Google Calendar događaje.
+
+### 11.2 HTML generator
+
+`HTMLScheduleGenerator` generiše četiri HTML fajla grupisana po entitetima:
+
+| Fajl | Grupiranje | Napomena |
+|:---|:---|:---|
+| `{semestar}_predmeti.html` | po predmetima | sortira po tipu + dan + vrijeme |
+| `{semestar}_nastavnici.html` | po nastavnicima | spaja višestruke nastavnike |
+| `{semestar}_prostorije.html` | po prostorijama | jedan event može imati više prostorija |
+| `{semestar}_grupe.html` | po grupama | podgrupa nasljeđuje evente roditelja |
+
+Svaki fajl sadrži navigaciju između pogleda i tabelarni prikaz sa CSS stilovima za vizualno razlikovanje tipova nastave.
+
+Prikaz grupa koristi mehanizam nasljeđivanja: podgrupa (npr. RI1-1a) automatski nasljeđuje sve evente svog roditelja (RI1) i evente grupe „Svi". Ovo se implementira pomoću metode `get_all_ancestors()` na `Group` objektu.
+
+### 11.3 Grid generator
+
+`GridGenerator` generiše tradicionalni tabelarni prikaz rasporeda — redovi su vremenski slotovi, kolone su dani sedmice, a ćelije sadrže evente. Za svakog nastavnika generiše se zasebna tabela sa CSS `page-break` pravilom za ispis na papiru.
+
+Vremenski slotovi se generišu dinamički na osnovu evenata u rasporedu — dodaje se 1 sat padding-a prije prvog i nakon zadnjeg eventa.
+
+### 11.4 Markdown generator
+
+`MarkdownReportGenerator` generiše tekstualni izvještaj u Markdown formatu. Za svaki event ispisuje predmet, tip nastave (puni naziv iz `LectureType` objekta), nastavnika, grupe, prostoriju, dan i vrijeme.
+
+### 11.5 Zajedničke pomoćne funkcije
+
+Funkcije `prepare_raw_data` i `condense_teachers` u `utils.py` eliminišu duplikaciju koda između generatora:
+
+```python
+def prepare_raw_data(events):
+    """Pretvara listu IR Event objekata u listu dict-ova.
+    Za svakog nastavnika kreira zaseban zapis."""
+    from .ir import Person
+    raw_data = []
+    for ev in events:
+        teachers_list = [t.name for t in ev.teachers]
+        loop_teachers = ev.teachers or [Person("Nepoznato", "Nepoznato")]
+        for teacher in loop_teachers:
+            entry = { ... }
+            raw_data.append(entry)
+    return raw_data
+
+
+def condense_teachers(data):
+    """Spaja evente koji se razlikuju samo po nastavniku."""
+    grouped = {}
+    for item in data:
+        key = (datum, vrijeme_start, vrijeme_kraj, predmet, grupe, prostorija, tip)
+        if key not in grouped:
+            grouped[key] = item.copy()
+        else:
+            # Dodaj nastavnike kojih nema u listi
+            ...
+    return list(grouped.values())
+```
+
+Ove funkcije koriste `Person` objekat iz IR-a kao placeholder za nedostajuće nastavnike umjesto dinamičkog kreiranja klase putem `type()`, čime je poboljšana čitljivost koda.
+
+---
+
+## 12. Validacija i eksport
+
+### 12.1 Validator
 
 Modul `validator.py` provjerava konzistentnost rasporeda:
 
 ```mermaid
 graph TD
     A["AssignmentNode"] --> B{"Nastavnik definisan?"}
-    B -->|"Ne"| C["❌ Nedefinisan nastavnik"]
-    B -->|"Da"| D{"Predmet definisan?"}
-    D -->|"Ne"| E["❌ Nedefinisan predmet"]
-    D -->|"Da"| F{"Prostorija definisana?"}
-    F -->|"Ne"| G["❌ Nedefinisana prostorija"]
-    F -->|"Da"| H{"Grupe definisane?"}
-    H -->|"Ne"| I["❌ Nedefinisana grupa"]
-    H -->|"Da"| J{"Frekvencija OK?"}
-    J -->|"Ne"| K["❌ Nedovoljno termina"]
-    J -->|"Da"| L["✓ Validan"]
+    B -->|"ne"| C["❌ Nedefinisan nastavnik"]
+    B -->|"da"| D{"Predmet definisan?"}
+    D -->|"ne"| E["❌ Nedefinisan predmet"]
+    D -->|"da"| F{"Prostorija definisana?"}
+    F -->|"ne"| G["❌ Nedefinisana prostorija"]
+    F -->|"da"| H{"Grupe definisane?"}
+    H -->|"ne"| I["❌ Nedefinisana grupa"]
+    H -->|"da"| J{"Frekvencija OK?"}
+    J -->|"ne"| K["❌ Nedovoljno termina"]
+    J -->|"da"| L["✓ Validan"]
 ```
+
+Validator uvijek provjerava sve entitete bez obzira na to da li postoje definicije u AST-u ili ne. Na ovaj način se spriječava maskiranje grešaka u fajlovima koji nemaju definicije.
 
 Validator razdvaja assignments na validne i nevalidne. Nevalidni se eksportuju u zasebni `nevalidno.ras` fajl sa komentarima o razlozima nevalidnosti.
 
-### 11.2 Eksporter
+### 12.2 Eksporter
 
 Eksporter (`exporter.py`) implementira obrnuti proces — transformiše AST nazad u RAS format. Ovo je korisno za:
 
-- **Refaktorisanje**: Monolitni fajl se razbija u modularne definicije
-- **Čišćenje**: Nevalidni unosi se razdvajaju od validnih
-- **Normalizacija**: Format se standardizira
+- **Refaktorisanje**: monolitni fajl se razbija u modularne definicije
+- **Čišćenje**: nevalidni unosi se razdvajaju od validnih
+- **Normalizaciju**: format se standardizira
 
-Eksporter generira strukturu sa UVEZI direktivama, čime se zatvara krug:
+Prostorije se eksportuju sa originalnim nazivom (`node.name`) bez formatiranja, jer nazivi prostorija (npr. „0-01", „A1") ne koriste CamelCase konvenciju.
+
+Eksporter generiše strukturu sa UVEZI direktivama, čime se zatvara krug:
+
 ```
 Ulazni .ras → Parse → AST → Validate → Export → Refaktorisani .ras
 ```
 
 ---
 
-## 12. Zaključak
+## 13. Refaktoring i principi kvaliteta koda
+
+### 13.1 Eliminacija duplikacije
+
+Tokom razvoja, identifikovana je duplikacija koda između HTML i Grid generatora — metode `_prepare_raw_data` i `_condense_teachers` bile su identične u oba modula. Ove metode su izdvojene u `utils.py` kao slobodne funkcije, čime se poštuje princip DRY (*Don't Repeat Yourself*) [4].
+
+### 13.2 Semantički korektno imenovanje
+
+Funkcija `format_person_name` originalno je obavljala generičku transformaciju CamelCase → razmak, ali je korištena i za nazive predmeta, prostorija i tipova nastave. Preimenovana je u `format_camel_case` sa aliasom `format_person_name` za kompatibilnost. Ovo poboljšava čitljivost koda jer ime funkcije sada precizno opisuje njenu operaciju.
+
+### 13.3 Eliminacija indirekcije
+
+Kompajler je originalno koristio posredni `config` rječnik koji je kopirao vrijednosti iz AST-a. Ova indirekcija je uklonjena — kompajler sada pristupa `self.ast` direktno, što smanjuje pozicije za greške i poboljšava preglednost.
+
+### 13.4 Konzistentnost CSS klasa
+
+Generatori su koristili nekonzistentne CSS prefikse za tipove nastave: HTML generator je koristio `tag-P`, dok je Grid generator koristio `type-P`. Ujednačeni su na `tag-` prefiks koji odgovara `LectureType.css_class` propertiju.
+
+### 13.5 Robusnost parsera
+
+Parser je originalno tiho preskakao neprepoznate tokene. Dodan je ispis upozorenja na `stderr` sa brojem linije i vrijednošću tokena, što znatno olakšava dijagnostiku grešaka u `.ras` fajlovima.
+
+Lookahead petlja za detekciju `PREDAJE` tokena koristila je hardkodirani limit od 15 tokena. Zamijenjena je `while` petljom koja pretražuje do `DOT` tokena — prirodnije granice iskaza.
+
+---
+
+## 14. Zaključak
 
 RAS jezik i tt2cal transpiler demonstriraju primjenu principa kompajlerskog dizajna na praktične probleme upravljanja akademskim rasporedima. Tri implementirana proširenja — UVEZI, Semestar i LectureType — adresiraju realne potrebe:
 
 1. **UVEZI** omogućava modularizaciju i ponovnu upotrebu definicija kroz semestre
 2. **Semestar** pruža temporalnu konfiguraciju neophodnu za kalendarsku integraciju
-3. **LectureType** centralizira upravljanje tipovima nastave sa eksplicitnim prioritetima
+3. **LectureType** centralizuje upravljanje tipovima nastave sa eksplicitnim prioritetima
 
 Troslojna hijerarhija konfiguracije (.ras > CLI > defaults) osigurava fleksibilnost — od minimalnog ulaza do potpune kontrole. Strogo razdvajanje između jezika (`ras2cal/`) i konfiguracije (`tt2cal.py`) omogućava prilagodbu za različite obrazovne sisteme.
 
+Refaktoring pipeline-a pokazuje da se principi kvaliteta koda (DRY, semantičko imenovanje, eliminacija indirekcije) mogu primjenjivati iterativno uz zadržavanje pune funkcionalnosti.
+
 Budući rad uključuje:
-- Evoluciju jezika ka RAS 2.0 sa blokovskom sintaksom i atributima entiteta
-- Eliminisanje prefiksa predmeta u korist eksplicitnog tipa u iskazu nastave
-- Integraciju sa automatskim alociranjem prostorija na osnovu kapaciteta
-- Web interfejs za vizualno uređivanje rasporeda sa RAS izlazom
+- evoluciju jezika ka RAS 2.0 sa blokovskom sintaksom i atributima entiteta
+- eliminisanje prefiksa predmeta u korist eksplicitnog tipa u iskazu nastave
+- integraciju sa automatskim alociranjem prostorija na osnovu kapaciteta
+- web-interfejs za vizualno uređivanje rasporeda sa RAS izlazom
 
 ---
 
-## 13. Reference
+## 15. Reference
 
-[1] M. Fowler, "Domain-Specific Languages," Addison-Wesley, 2010.
+[1] M. Fowler, *Domain-Specific Languages*, Addison-Wesley, 2010.
 
-[2] A. Aho, M. Lam, R. Sethi, J. Ullman, "Compilers: Principles, Techniques, and Tools," 2nd ed., Pearson, 2006.
+[2] A. Aho, M. Lam, R. Sethi, J. Ullman, *Compilers: Principles, Techniques, and Tools*, 2nd ed., Pearson, 2006.
 
-[3] T. Parr, "Language Implementation Patterns," Pragmatic Bookshelf, 2010.
+[3] T. Parr, *Language Implementation Patterns*, Pragmatic Bookshelf, 2010.
 
-[4] E. Gamma, R. Helm, R. Johnson, J. Vlissides, "Design Patterns: Elements of Reusable Object-Oriented Software," Addison-Wesley, 1994.
+[4] E. Gamma, R. Helm, R. Johnson, J. Vlissides, *Design Patterns: Elements of Reusable Object-Oriented Software*, Addison-Wesley, 1994.
 
-[5] Python Software Foundation, "Python 3 Documentation — dataclasses," https://docs.python.org/3/library/dataclasses.html
+[5] Python Software Foundation, „Python 3 Documentation — dataclasses," https://docs.python.org/3/library/dataclasses.html
 
-[6] Google, "Google Calendar API — Events: insert," https://developers.google.com/calendar/api/v3/reference/events/insert
+[6] Google, „Google Calendar API — Events: insert," https://developers.google.com/calendar/api/v3/reference/events/insert
 
-[7] RFC 5545, "Internet Calendaring and Scheduling Core Object Specification (iCalendar)," IETF, 2009.
+[7] RFC 5545, „Internet Calendaring and Scheduling Core Object Specification (iCalendar)," IETF, 2009.
