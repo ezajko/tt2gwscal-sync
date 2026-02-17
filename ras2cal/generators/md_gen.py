@@ -1,36 +1,43 @@
-from ..models import AssignmentNode
-from ..utils import format_person_name
+"""
+md_gen.py - Markdown generator za raspored
+
+Generise tekstualni izvjestaj u Markdown formatu.
+Za svaki event ispisuje predmet, tip, nastavnika, grupe, prostoriju i termine.
+
+Prima ScheduleModel (IR) objekat, konzistentno sa ostalim generatorima.
+"""
 
 
 class MarkdownReportGenerator:
-    def __init__(self, schedule):
-        self.schedule = schedule
+    """Generator za Markdown izvjestaj rasporeda.
+
+    Args:
+        model: ScheduleModel IR objekat sa svim kompajliranim eventima.
+    """
+
+    def __init__(self, model):
+        self.model = model
 
     def generate(self):
+        """Generise kompletni Markdown izvjestaj."""
         report = "# Plan Nastave - Semestralni Izvještaj\n\n"
-        for node in self.schedule.assignments:
-            if isinstance(node, AssignmentNode):
-                prostor = ", ".join(node.rooms) if node.rooms else "Nije definisano"
-                nastavnici = ", ".join([format_person_name(n) for n in node.teachers])
-                subj_name = node.subject
-                subj_type = node.type
 
-                type_label = "Predavanje"
-                if subj_type == 'V': type_label = "Vježbe"
-                elif subj_type == 'L': type_label = "Laboratorijske vježbe"
-                elif subj_type == 'T': type_label = "Tutorijal"
+        for ev in self.model.events:
+            nastavnici = ", ".join(t.name for t in ev.teachers)
+            prostor = ", ".join(r.name for r in ev.rooms) if ev.rooms else "Nije definisano"
 
-                # Formatiranje grupa (list of lists)
-                raw_groups = node.groups
-                if isinstance(raw_groups, list):
-                     group_str = " + ".join([", ".join(sub) for sub in raw_groups])
-                else:
-                     group_str = str(raw_groups)
+            # Labela tipa nastave (koristi puni naziv iz LectureType objekta)
+            type_label = ev.type.name
 
-                report += f"### {subj_name}\n"
-                report += f"- **Tip**: {type_label}\n"
-                report += f"- **Nastavnik**: {nastavnici}\n"
-                report += f"- **Grupe**: {group_str}\n"
-                report += f"- **Prostorija**: {prostor}\n"
-                report += f"- **Termini**: `{' '.join(node.slots)}`\n\n"
+            # Formatiranje grupa
+            group_str = " + ".join(g.name for g in ev.groups)
+
+            report += f"### {ev.subject.name}\n"
+            report += f"- **Tip**: {type_label}\n"
+            report += f"- **Nastavnik**: {nastavnici}\n"
+            report += f"- **Grupe**: {group_str}\n"
+            report += f"- **Prostorija**: {prostor}\n"
+            report += f"- **Dan**: {ev.day_name}\n"
+            report += f"- **Vrijeme**: `{ev.start_time_str} - {ev.end_time_str}`\n\n"
+
         return report

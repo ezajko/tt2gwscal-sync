@@ -1,89 +1,99 @@
+"""
+html_gen.py - HTML generator za raspored (po entitetima)
+
+Generise cetiri HTML fajla:
+    {semestar}_predmeti.html    - grupisano po predmetima
+    {semestar}_nastavnici.html  - grupisano po nastavnicima
+    {semestar}_prostorije.html  - grupisano po prostorijama
+    {semestar}_grupe.html       - grupisano po grupama (sa nasljedjivanjem)
+
+Svaki fajl ima navigaciju izmedju pogleda i tabelarni prikaz.
+"""
 import os
 
-from ..utils import merge_events
+from ..utils import merge_events, prepare_raw_data, condense_teachers
 
 
 class HTMLScheduleGenerator:
+    """Generator za HTML raspored sa grupiranjem po entitetima."""
+
     def __init__(self, model, output_dir, title=None):
         self.model = model
         self.output_dir = output_dir.rstrip('/')
-        self.title = title if title else f"Raspored - {model.semester_name}"
+        self.title = title or f"Raspored - {model.semester_name}"
 
-        self.day_order = {
-            "Ponedjeljak": 0, "Ponedeljak": 0, "Mon": 0,
-            "Utorak": 1, "Tue": 1,
-            "Srijeda": 2, "Sreda": 2, "Wed": 2,
-            "Četvrtak": 3, "Cetvrtak": 3, "Thu": 3,
-            "Petak": 4, "Fri": 4,
-            "Subota": 5, "Sat": 5,
-            "Nedjelja": 6, "Nedelja": 6, "Sun": 6,
-            "Nepoznato": 7
+        # Redoslijed dana iz modela (1-based -> 0-based)
+        self.day_order = {}
+        for day_name, day_number in model.days.items():
+            try:
+                self.day_order[day_name] = int(day_number) - 1
+            except ValueError:
+                self.day_order[day_name] = 99
+
+        # Redoslijed tipova iz default_types (za sortiranje po tipu)
+        self.type_order = {
+            code: lt.priority for code, lt in model.default_types.items()
         }
-        self.type_order = {'P': 0, 'V': 1, 'L': 2, 'T': 3}
 
-    def generate(self):
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
+    # ------------------------------------------------------------------
+    # Priprema podataka
+    # ------------------------------------------------------------------
 
-        raw_data = []
-        for ev in self.model.events:
-             entry = {
-                'subject': ev.subject.name,
-                'type': ev.type.code,
-                'teachers': [t.name for t in ev.teachers],
-                'grupe': [[g.name] for g in ev.groups],
-                'rooms': [r.name for r in ev.rooms],
-                'day': ev.day_name,
-                'time': f"{ev.start_time_str} - {ev.end_time_str}",
-                'start_time': ev.start_time_str,
-                'end_time': ev.end_time_str,
+    # _prepare_raw_data i _condense_teachers su sada u utils.py
+    # kao zajednicke funkcije prepare_raw_data() i condense_teachers()
 
-                # Legacy fields for compatibility with existing templates/methods
-                'predmet': ev.subject.name,
-                'tip': ev.type.code,
-                'prostorija': [r.name for r in ev.rooms]
-            }
-             raw_data.append(entry)
+    # ------------------------------------------------------------------
+    # Grupiranje podataka
+    # ------------------------------------------------------------------
 
-        merged_data = merge_events(raw_data)
-        condensed_raw = self._condense_teachers(raw_data)
-        condensed_merged = self._condense_teachers(merged_data)
+    def _group_by(self, data, key):
+        """Grupise podatke po vrijednosti jednog kljuca (string)."""
+        grouped = {}
+        for item in data:
+            val = item.get(key, "N/A")
+            grouped.setdefault(val, []).append(item)
+        return grouped
 
-        # Generisanje podataka za grupe (sa nasljeđivanjem)
-        groups_data = self._generate_groups_view(raw_data)
-
-        prefix = self.model.semester_name
-
-        self._write_html(f"{prefix}_predmeti.html", f"{self.title} - Po Predmetima", self._group_by(condensed_raw, 'subject'), prefix, sort_by_type=True)
-        self._write_html(f"{prefix}_nastavnici.html", f"{self.title} - Po Nastavnicima", self._group_by_list(condensed_merged, 'teachers'), prefix)
-        self._write_html(f"{prefix}_prostorije.html", f"{self.title} - Po Prostorijama", self._group_by_list(condensed_merged, 'prostorija'), prefix)
-        self._write_html(f"{prefix}_grupe.html", f"{self.title} - Po Grupama", groups_data, prefix)
+    def _group_by_list(self, data, list_key):
+        """Grupise podatke po vrijednostima liste (jedan zapis moze
+        pripadati vise grupa, npr. vise prostorija)."""
+        grouped = {}
+        for item in data:
+            values = item.get(list_key, [])
+            if not isinstance(values, list):
+                values = [values]
+            if not values:
+                values = ["N/A"]
+            for v in values:
+                grouped.setdefault(v, []).append(item)
+        return grouped
 
     def _generate_groups_view(self, raw_data):
-        """Generiše mapu evenata za svaku grupu, uključujući naslijeđene evente od roditelja."""
-
+        """Generise mapu evenata za svaku grupu sa nasljedjivanjem.
+        Podgrupa nasljedjuje evente svog roditelja."""
         group_events = {}
-        # Sort groups by name for consistent output
         all_groups = sorted(self.model.groups.values(), key=lambda g: g.name)
 
         for group in all_groups:
-            if group.name == "Svi": continue # Skip "Svi" as a specific group view
+            if group.name == "Svi":
+                continue
 
-            # Ancestors (parents)
+            # Skupi nazive grupe i svih roditelja
             ancestors = group.get_all_ancestors()
             relevant_names = {group.name} | {a.name for a in ancestors}
 
             my_events = []
             for item in raw_data:
-                # Check intersection
                 is_relevant = False
+
+                # Provjeri presjecanje grupa eventa sa relevantnim grupama
                 for sublist in item['grupe']:
                     if not set(sublist).isdisjoint(relevant_names):
                         is_relevant = True
                         break
 
-                # Check "Svi"
-                if [["Svi"]] == item['grupe']:
+                # Eventi za grupu "Svi" se nasljedjuju svima
+                if item['grupe'] == [["Svi"]]:
                     is_relevant = True
 
                 if is_relevant:
@@ -91,64 +101,60 @@ class HTMLScheduleGenerator:
 
             if my_events:
                 merged = merge_events(my_events)
-                condensed = self._condense_teachers(merged)
+                condensed = condense_teachers(merged)
                 group_events[group.name] = condensed
 
         return group_events
 
-    def _condense_teachers(self, data):
-        grouped = {}
-        for item in data:
-            rooms_list = item.get('prostorija', item.get('rooms', []))
-            rooms_tuple = tuple(sorted(rooms_list))
+    # ------------------------------------------------------------------
+    # Generisanje HTML-a
+    # ------------------------------------------------------------------
 
-            raw_groups = item.get('grupe', item.get('group', []))
-            groups_tuple = tuple(tuple(sub) for sub in raw_groups)
+    def generate(self):
+        """Generise sve HTML fajlove."""
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
 
-            key = (
-                item['day'],
-                item['start_time'],
-                item['end_time'],
-                item.get('predmet', item.get('subject')),
-                groups_tuple,
-                rooms_tuple,
-                item.get('tip', item.get('type'))
-            )
+        # Priprema podataka (zajednicke funkcije iz utils)
+        raw_data = prepare_raw_data(self.model.events)
+        merged_data = merge_events(raw_data)
+        condensed_raw = condense_teachers(raw_data)
+        condensed_merged = condense_teachers(merged_data)
+        groups_data = self._generate_groups_view(raw_data)
 
-            if key not in grouped:
-                grouped[key] = item.copy()
-                # Ensure list copy
-                grouped[key]['teachers'] = list(item['teachers'])
-            else:
-                current = grouped[key]['teachers']
-                for t in item['teachers']:
-                    if t not in current:
-                        current.append(t)
-        return list(grouped.values())
+        prefix = self.model.semester_name
 
-    def _group_by(self, data, key):
-        grouped = {}
-        for item in data:
-            val = item.get(key)
-            if not val and key == 'subject': val = item.get('predmet')
-            if not val: val = "N/A"
+        # Generisanje cetiri pogleda
+        self._write_html(
+            f"{prefix}_predmeti.html", f"{self.title} - Po Predmetima",
+            self._group_by(condensed_raw, 'predmet'), prefix, sort_by_type=True,
+        )
+        self._write_html(
+            f"{prefix}_nastavnici.html", f"{self.title} - Po Nastavnicima",
+            self._group_by_list(condensed_merged, 'teachers'), prefix,
+        )
+        self._write_html(
+            f"{prefix}_prostorije.html", f"{self.title} - Po Prostorijama",
+            self._group_by_list(condensed_merged, 'prostorija'), prefix,
+        )
+        self._write_html(
+            f"{prefix}_grupe.html", f"{self.title} - Po Grupama",
+            groups_data, prefix,
+        )
 
-            if val not in grouped: grouped[val] = []
-            grouped[val].append(item)
-        return grouped
-
-    def _group_by_list(self, data, list_key):
-        grouped = {}
-        for item in data:
-            values = item.get(list_key, [])
-            if not isinstance(values, list): values = [values]
-            if not values: values = ["N/A"]
-            for v in values:
-                if v not in grouped: grouped[v] = []
-                grouped[v].append(item)
-        return grouped
+    def _resolve_tag_class(self, type_code):
+        """Razrijesava CSS klasu za tip nastave.
+        Provjerava da li tip postoji u default_types, inace koristi fallback."""
+        if type_code in self.model.default_types:
+            return self.model.default_types[type_code].css_class
+        # Fallback: provjeri da li kod sadrzi poznati karakter
+        for char in ('V', 'L', 'T'):
+            if char in type_code:
+                return f"tag-{char}"
+        return "tag-P"
 
     def _write_html(self, filename, title, grouped_data, prefix, sort_by_type=False):
+        """Generise i zapisuje jedan HTML fajl."""
         html = f"""
         <!DOCTYPE html>
         <html lang="bs">
@@ -184,52 +190,47 @@ class HTMLScheduleGenerator:
             <h1>{title}</h1>
         """
 
-        sorted_keys = sorted(grouped_data.keys())
-
-        for key in sorted_keys:
+        for key in sorted(grouped_data.keys()):
             items = grouped_data[key]
 
+            # Sortiranje: po tipu+dan+vrijeme ili dan+vrijeme
             if sort_by_type:
                 items.sort(key=lambda x: (
-                    self.type_order.get(x.get('tip', 'P')[0], 99),
-                    self.day_order.get(x['day'], 99),
-                    x['start_time']
+                    self.type_order.get(x.get('tip', 'P'), 99),
+                    self.day_order.get(x['datum'], 99),
+                    x['vrijeme_start'],
                 ))
             else:
                 items.sort(key=lambda x: (
-                    self.day_order.get(x['day'], 99),
-                    x['start_time']
+                    self.day_order.get(x['datum'], 99),
+                    x['vrijeme_start'],
                 ))
 
             html += f"<div class='section'><div class='section-title'>{key}</div><table>"
-            html += "<thead><tr><th>Predmet</th><th>Tip</th><th>Nastavnici</th><th>Grupe</th><th>Dan</th><th>Vrijeme</th><th>Prostorija</th></tr></thead><tbody>"
+            html += ("<thead><tr><th>Predmet</th><th>Tip</th><th>Nastavnici</th>"
+                     "<th>Grupe</th><th>Dan</th><th>Vrijeme</th><th>Prostorija</th>"
+                     "</tr></thead><tbody>")
 
             for item in items:
                 teachers_str = ", ".join(item['teachers'])
-
-                rooms_to_show = item.get('prostorija', item.get('rooms', []))
+                rooms_to_show = item.get('prostorija', [])
                 rooms_str = ", ".join(rooms_to_show) if rooms_to_show else "N/A"
 
-                current_type = item.get('tip', item.get('type', 'P'))
+                tag_class = self._resolve_tag_class(item.get('tip', 'P'))
 
-                tag_class = "tag-P"
-                if "V" in current_type: tag_class = "tag-V"
-                elif "L" in current_type: tag_class = "tag-L"
-                elif "T" in current_type: tag_class = "tag-T"
-
-                raw_groups = item.get('grupe', item.get('group', []))
+                raw_groups = item.get('grupe', [])
                 if isinstance(raw_groups, list):
-                     group_str = " + ".join([", ".join(sub) for sub in raw_groups])
+                    group_str = " + ".join(", ".join(sub) for sub in raw_groups)
                 else:
-                     group_str = str(raw_groups)
+                    group_str = str(raw_groups)
 
                 html += f"""
                 <tr>
-                    <td>{item.get('predmet', item.get('subject'))}</td>
-                    <td><span class="tag {tag_class}">{current_type}</span></td>
+                    <td>{item.get('predmet', 'N/A')}</td>
+                    <td><span class="tag {tag_class}">{item.get('tip', 'N/A')}</span></td>
                     <td>{teachers_str}</td>
                     <td>{group_str}</td>
-                    <td>{item['day']}</td>
+                    <td>{item['datum']}</td>
                     <td>{item['time']}</td>
                     <td>{rooms_str}</td>
                 </tr>

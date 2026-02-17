@@ -1,14 +1,13 @@
 # tt2cal - Kompajler Rasporeda
 
-**tt2cal** (Text-to-Calendar) je alat komandne linije (CLI) namijenjen za konverziju tekstualnih definicija školskih rasporeda (pisanih u RAS jeziku) u strukturirane formate kao što su JSON, Markdown i HTML.
+**tt2cal** (Text-to-Calendar) je CLI alat koji pretvara tekstualne definicije rasporeda (pisane u RAS jeziku) u JSON, Markdown, HTML i grid formate.
 
 ## Instalacija i Pokretanje
 
-Alat je napisan u Python-u i ne zahtijeva dodatne biblioteke izvan standardne biblioteke.
+Alat je napisan u Python-u i ne zahtijeva dodatne biblioteke (samo standardna biblioteka).
 
 ```bash
-# Pokretanje alata
-python tt2cal.py -i ulazni_fajl.txt [opcije]
+python tt2cal.py -i raspored.ras [opcije]
 ```
 
 ## Argumenti Komandne Linije
@@ -16,62 +15,132 @@ python tt2cal.py -i ulazni_fajl.txt [opcije]
 ### Ulaz i Izlaz
 | Argument | Opis |
 | :--- | :--- |
-| `-i`, `--input` | **Obavezno**. Putanja do ulaznog `.txt` fajla sa definicijom rasporeda. Podržava `UVEZI:` direktive. |
-| `-j`, `--json` | Putanja do izlaznog JSON fajla. Sadrži strukturirane podatke pogodne za mašinsku obradu. |
-| `-m`, `--md` | Putanja za generisanje čitljivog Markdown izvještaja. |
-| `-w`, `--html` | Putanja do direktorija u kojem će se generisati HTML izvještaji (po predmetima, nastavnicima, prostorijama). |
-| `-e`, `--export` | Putanja do direktorija za eksport validiranog i refaktorisanog RAS koda (uključujući definicije i raspored). |
-| `-s`, `--stdout` | Ispisuje generisani JSON direktno na standardni izlaz (stdout). Korisno za pipe-ovanje. |
-| `-a`, `--ast` | Ispisuje internu AST (Abstract Syntax Tree) strukturu na stderr (za debugiranje). |
+| `-i`, `--input` | **Obavezno**. Putanja do ulaznog `.ras` fajla. Podržava `UVEZI:` direktive za modularizaciju. |
+| `-j`, `--json` | Putanja do izlaznog JSON fajla. |
+| `-m`, `--md` | Putanja za Markdown izvještaj. |
+| `-w`, `--html` | Direktorij za HTML izvještaje (po predmetima, nastavnicima, grupama, prostorijama). |
+| `-g`, `--grid` | Direktorij za tradicionalni grid (tabelarni) HTML izvještaj. |
+| `-e`, `--export` | Direktorij za eksport refaktorisanog RAS koda (uključujući definicije i raspored). |
+| `-s`, `--stdout` | Ispisuje JSON direktno na standardni izlaz. Korisno za pipe-ovanje. |
+| `-a`, `--ast` | Ispisuje AST strukturu na stdout (za debug). Moze se pipe-ati (`\| head`, `\| grep`). |
 
-> **Napomena:** Morate specificirati barem jedan izlazni format (`-j`, `-m`, `-w`, `-e` ili `-s`).
+> **Napomena:** Morate specificirati barem jedan izlazni format (`-j`, `-m`, `-w`, `-g`, `-e`, `-s` ili `-a`).
 
 ### Filtriranje Sadržaja
-Omogućava generisanje rasporeda samo za određene kriterije. Koristi regex (regularne izraze) za pretragu.
+Regex-bazirano filtriranje za generisanje podskupa rasporeda.
 
 | Argument | Opis | Primjer |
 | :--- | :--- | :--- |
-| `--teacher` | Filtriraj po imenu nastavnika. | `--teacher "Vahid"` |
-| `--subject` | Filtriraj po nazivu predmeta. | `--subject "Matematika"` |
-| `--room` | Filtriraj po nazivu prostorije. | `--room "A4"` |
-| `--group` | Filtriraj po oznaci grupe. | `--group "RI1"` |
+| `--teacher` | Filtriraj po nastavniku. | `--teacher "Vahid"` |
+| `--subject` | Filtriraj po predmetu. | `--subject "Matematika"` |
+| `--room` | Filtriraj po prostoriji. | `--room "A4"` |
+| `--group` | Filtriraj po grupi. | `--group "RI1"` |
+
+### Konfiguracija Semestra
+| Argument | Opis | Default |
+| :--- | :--- | :--- |
+| `--semestar-start` | Početak semestra (YYYY-MM-DD ili DD.MM.YYYY). | Iz .ras fajla ili 01.10.tekuća_godina |
+| `--semestar-end` | Kraj semestra (YYYY-MM-DD ili DD.MM.YYYY). | Iz .ras fajla ili izračunato iz trajanja |
+| `--semestar-duration` | Trajanje u sedmicama. | `15` |
+| `--semestar-title` | Naziv semestra (koristi se kao naziv kalendara). | Iz .ras fajla ili "Semestar YYYY" |
 
 ### Konfiguracija Vremena
 | Argument | Opis | Default |
 | :--- | :--- | :--- |
-| `--start` | Datum početka semestra (YYYY-MM-DD). | `2024-09-30` |
-| `--end` | Datum kraja semestra (YYYY-MM-DD). | `2025-01-15` |
 | `--base-time` | Vrijeme početka prvog termina (HH:MM). | `08:00` |
-| `--duration` | Trajanje jednog osnovnog vremenskog slota u minutama. | `30` |
-| `--slots-per-index` | Broj slotova po indeksnom koraku (npr. od PO1 do PO2). | `2` |
+| `--duration` | Trajanje jednog slota u minutama. | `30` |
+| `--slots-per-index` | Broj slotova po indeksu (npr. od PO1 do PO2). | `2` |
+
+## Hijerarhija Konfiguracije
+
+Konfiguracija se razrješava po prioritetu (veći broj = jači):
+
+1. **LECTURE_TYPES konstanta** u `tt2cal.py` (fallback)
+2. **CLI argumenti** (`--semestar-start`, `--base-time`, ...)
+3. **Definicije iz .ras fajla** (najjači prioritet)
+
+Tipovi nastave koji su eksplicitno definirani u `.ras` fajlu imaju prednost nad defaultima iz `tt2cal.py`.
+
+## Tipovi Nastave
+
+Podrazumijevani tipovi (definirani u `tt2cal.py`):
+
+| Kod | Naziv | Prioritet |
+| :--- | :--- | :--- |
+| `P` | Predavanje | 0 |
+| `V` | Vježbe | 1 |
+| `L` | Laboratorijske vježbe | 2 |
+| `T` | Tutorijal | 3 |
+| `N` | Nepoznato | 9 |
+
+Tipovi se mogu override-ovati u `.ras` fajlu (vidi `ras.md`).
 
 ## Primjeri Upotrebe
 
-### 1. Generisanje kompletnog izvještaja
+### 1. Kompletni run (svi formati)
 ```bash
-python tt2cal.py -i raspored.txt -j podaci.json -m izvjestaj.md -w html_izvjestaj
+python tt2cal.py -i raspored.ras -j podaci.json -m izvjestaj.md -w html/ -g grid/ -e export/
 ```
 
-### 2. Filtriranje za jednog profesora (JSON na ekran)
+### 2. Filtriranje za jednog profesora
 ```bash
-python tt2cal.py -i raspored.txt --teacher "Elmedin" -s
+python tt2cal.py -i raspored.ras --teacher "Elmedin" -s
 ```
 
-### 3. Prilagođeno vrijeme (Školski čas 45min)
+### 3. AST inspekcija sa filterom
 ```bash
-python tt2cal.py -i skola.txt --duration 45 --slots-per-index 1 -w html_skola
+python tt2cal.py -i raspored.ras -a --teacher "Raca" | grep "ASSIGNMENTS" -A20
+```
+
+### 4. Prilagođeno vrijeme (školski čas 45min)
+```bash
+python tt2cal.py -i skola.ras --duration 45 --slots-per-index 1 -w html/
+```
+
+### 5. Eksplicitni datumi semestra
+```bash
+python tt2cal.py -i raspored.ras --semestar-start 2025-02-24 --semestar-duration 15 -j izlaz.json
 ```
 
 ## Formati Izlaza
 
 ### JSON
-Sadrži listu događaja sa spojenim informacijama. Grupe su predstavljene kao lista listi `[['G1', 'G2'], ['G3']]` kako bi se očuvala razlika između grupa definisanih zajedno (zarez) i onih spojenih merge-om (plus).
+Lista događaja sa spojenim informacijama. Grupe su lista listi `[["G1", "G2"], ["G3"]]` (zarez = zajednička nastava, plus = merge). Sadrži i meta-podatke (naziv kalendara, datumi, nenastavni dani).
 
-### HTML
-Generiše tri fajla:
-1.  `raspored_predmeti.html`: Grupisano po predmetima, sortirano po tipu nastave (P, V, L, T).
-2.  `raspored_nastavnici.html`: Prikaz po nastavnicima (sa spojenim terminima).
-3.  `raspored_prostorije.html`: Prikaz zauzeća prostorija.
+### HTML (-w)
+Četiri fajla sa navigacijom između pogleda:
+1. `{semestar}_predmeti.html` — po predmetima (sortirano po tipu P, V, L, T)
+2. `{semestar}_nastavnici.html` — po nastavnicima
+3. `{semestar}_grupe.html` — po grupama (sa nasljeđivanjem od roditelja)
+4. `{semestar}_prostorije.html` — po prostorijama
+
+### Grid HTML (-g)
+Tradicionalni tabelarni prikaz (dani × termini) sa sekcijama za svakog nastavnika. Optimiziran za A4 landscape print sa page-break-ovima.
 
 ### Markdown
-Jednostavan tekstualni prikaz, pogodan za brzi pregled.
+Jednostavan tekstualni izvještaj za brzi pregled.
+
+### Eksport (-e)
+Refaktorisani RAS kod u strukturiranom direktoriju:
+```
+export/
+  raspored.ras              # glavni fajl sa UVEZI direktivama
+  definicije/
+    semestar.ras             # konfiguracija semestra
+    vrijeme.ras              # dani i termini
+    tipovi.ras               # tipovi nastave (merged)
+    nastavnici.ras           # definicije nastavnika
+    predmeti.ras             # definicije predmeta
+    prostorije.ras           # definicije prostorija
+    grupe.ras                # odjeljenja i podgrupe
+  nevalidno.ras              # nevalidni unosi (ako postoje)
+```
+
+## Pipeline
+
+```
+.ras fajl → Lexer → Parser → AST → [Filteri] → Compiler → IR → Generatori
+                                          ↑                          ↓
+                                    tt2cal.py              JSON / MD / HTML / Grid
+                                  (konfiguracija)
+```

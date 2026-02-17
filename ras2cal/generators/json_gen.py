@@ -1,37 +1,31 @@
-import re
-from datetime import datetime, timedelta
+"""
+json_gen.py - JSON generator za raspored
 
+Generise listu evenata u JSON formatu kompatibilnom sa sync.py skriptom
+za sinhronizaciju sa Google Workspace kalendarom.
+
+Svaki event ima: osobu, predmet, tip, grupe, datum, vrijeme, prostoriju,
+dodatne osobe i podatke o ponavljanju.
+"""
 from ..utils import merge_events
 
 
 class JSONScheduleGenerator:
+    """Generise JSON evente iz IR modela."""
+
     def __init__(self, model):
         self.model = model
 
     def generate(self):
-        events = []
-        for ev in self.model.events:
-            events.append(self._to_event(ev))
-
+        """Generise listu evenata i spaja duplikate."""
+        events = [self._to_event(ev) for ev in self.model.events]
         return merge_events(events)
 
     def _to_event(self, ev):
-        # Format groups as list of lists (compatibility)
-        # IR groups is flat list.
-        # But original AST groups was list of lists.
-        # If we flattened it in Compiler, we lost that structure.
-        # But for JSON sync, flat list [["G1", "G2"]] is fine if they are merged.
-        # Or [["G1"], ["G2"]].
-        # Compiler flattened it to [G1, G2].
-        # Let's verify Compiler:
-        # event_groups.append(g) for sublist for g_name
-        # It flattened everything.
-        # So we output [["G1", "G2"]] (one group list) or individual?
-        # merge_events will merge identical events with different groups.
-        # So providing individual groups is safer?
-        # Actually, `sync.py` handles `grupe` as list of lists.
-        # Let's provide `[[g.name] for g in ev.groups]`.
+        """Pretvara IR Event u dict format za JSON izlaz.
 
+        Grupe se izlazu kao lista lista radi kompatibilnosti sa sync.py
+        koji ocekuje format [[G1], [G2]] za individualne grupe."""
         groups_list = [[g.name] for g in ev.groups]
 
         return {
@@ -48,6 +42,6 @@ class JSONScheduleGenerator:
                 "frekvencija": ev.frequency,
                 "datum_kraj": ev.until_date,
                 "interval": ev.interval,
-                "izuzeci": ev.exdates
-            }
+                "izuzeci": ev.exdates,
+            },
         }

@@ -1,9 +1,18 @@
-import re
+"""
+compiler.py - Kompajler AST -> IR
+
+Pretvara AST (sirove parsirane podatke) u IR (obogaceni model sa
+razrijesenim referencama, vremenima i datumima).
+
+Koraci kompajliranja:
+    1. Izgradnja lookup tablela (nastavnici, prostorije, predmeti, grupe)
+    2. Obrada assignmenta (razrjesavanje vremena, datuma, entiteta)
+    3. Kreiranje Event objekata u ScheduleModel
+"""
 from datetime import datetime, timedelta
 from typing import Dict, List
 
 from .ir import (
-    DEFAULT_TYPES,
     Event,
     Group,
     LectureType,
@@ -13,76 +22,91 @@ from .ir import (
     Subject,
 )
 from .models import AssignmentNode, Schedule
-from .utils import format_person_name
+from .utils import format_camel_case
 
 
 class ScheduleCompiler:
-    def __init__(self, ast: Schedule, config: Dict):
+    """Kompajlira Schedule AST u ScheduleModel IR."""
+
+    def __init__(self, ast: Schedule):
         self.ast = ast
-        self.config = config
 
-        # Config shortcuts
-        self.base_time = datetime.strptime(config.get('base_time', '08:00'), "%H:%M")
-        self.slot_duration = int(config.get('slot_duration', 30))
-        self.slots_per_index = int(config.get('slots_per_index', 2))
+        # Precalculated vrijednosti za razrjesavanje vremena
+        self.base_time = datetime.strptime(ast.base_time, "%H:%M")
+        self.slot_duration = ast.slot_duration
+        self.slots_per_index = ast.slots_per_index
 
-        # Start date is mandatory in config at this point (tt2cal ensures defaults)
-        self.semester_start = datetime.strptime(config['start_date'], "%Y-%m-%d")
-        self.semester_end = config.get('end_date')
+        # Pocetak semestra (za racunanje datuma prvog pojavljivanja)
+        if ast.start_date:
+            self.semester_start = datetime.strptime(ast.start_date, "%Y-%m-%d")
+        else:
+            current_year = datetime.now().year
+            self.semester_start = datetime(current_year, 10, 1)
 
-        # Mappings
-        self.day_map = {
-            "Ponedjeljak": 0, "Ponedeljak": 0, "Mon": 0,
-            "Utorak": 1, "Tue": 1,
-            "Srijeda": 2, "Sreda": 2, "Wed": 2,
-            "Četvrtak": 3, "Cetvrtak": 3, "Thu": 3,
-            "Petak": 4, "Fri": 4,
-            "Subota": 5, "Sat": 5,
-            "Nedjelja": 6, "Nedelja": 6, "Sun": 6
-        }
+        self.semester_end = ast.end_date
 
-        # State
+        # Rjecnik dana (naziv -> broj) iz AST-a
+        days_dict = {}
+        for day_name, day_node in ast.days.items():
+            days_dict[day_name] = str(day_node.number)
+
+        # Inicijalizacija IR modela
         self.model = ScheduleModel(
-            semester_name=config.get('name', 'Schedule'),
-            start_date=config['start_date'],
-            end_date=config.get('end_date', ''),
-            holidays=config.get('holidays', [])
+            semester_name=ast.semester_info.get('name', 'Schedule'),
+            start_date=ast.start_date,
+            end_date=ast.end_date or '',
+            holidays=ast.holidays or [],
+            days=days_dict,
         )
 
     def compile(self) -> ScheduleModel:
+        """Glavna metoda: kompajlira AST u IR model."""
         self._build_lookups()
         self._process_assignments()
+        # Propagiraj tipove nastave u IR (koriste ih html_gen i grid_gen)
+        self.model.default_types = self.ast.default_types
         return self.model
 
+    # ------------------------------------------------------------------
+    # Pomocne metode
+    # ------------------------------------------------------------------
+
+    def _resolve_type(self, type_code: str) -> LectureType:
+        """Razrijesava kod tipa u LectureType objekat.
+        Ako kod nije poznat, vraca genericki tip sa prioritetom 99."""
+        return self.ast.default_types.get(
+            type_code, LectureType(type_code, type_code, 99)
+        )
+
     def _build_lookups(self):
-        # 1. People
+        """Gradi lookup rjecnike iz AST definicija."""
+
+        # 1. Nastavnici
         for node in self.ast.teachers.values():
-            p = Person(id=node.name, name=format_person_name(node.name))
+            p = Person(id=node.name, name=format_camel_case(node.name))
             self.model.people[node.name] = p
 
-        # 2. Rooms
+        # 2. Prostorije
         for node in self.ast.rooms.values():
             r = Room(id=node.name, name=node.name)
             self.model.rooms[node.name] = r
 
-        # 3. Subjects
+        # 3. Predmeti
         for node in self.ast.subjects.values():
-            # Resolve types
             types = set()
             for t_code in node.types:
-                types.add(DEFAULT_TYPES.get(t_code, LectureType(t_code, "Ostalo", 99)))
-
-            s = Subject(id=node.name, name=format_person_name(node.name), types=types)
+                types.add(self._resolve_type(t_code))
+            s = Subject(id=node.name, name=format_camel_case(node.name), types=types)
             self.model.subjects[node.name] = s
 
-        # 4. Groups (Hierarchy)
-        # First pass: create objects
+        # 4. Grupe (sa hijerarhijom roditelj-dijete)
+        # Prvi prolaz: kreiraj objekte
         all_group_names = set(self.ast.study_groups.keys()) | set(self.ast.subgroups.keys())
         for name in all_group_names:
             g = Group(id=name, name=name)
             self.model.groups[name] = g
 
-        # Second pass: link parents
+        # Drugi prolaz: povezi roditelje i djecu
         for node in self.ast.subgroups.values():
             child = self.model.groups[node.name]
             if node.parent and node.parent in self.model.groups:
@@ -90,92 +114,93 @@ class ScheduleCompiler:
                 child.parent = parent
                 parent.subgroups.append(child)
 
-    def _resolve_time(self, slot_id: str) -> (datetime, int):
-        """Returns (start_time_dt, duration_minutes)."""
-        # Try finding in AST slots
+    def _resolve_time(self, slot_id: str) -> tuple:
+        """Razrijesava ID termina u (start_datetime, duration_minutes).
+        Koristi AST slot definicije za racunanje vremena."""
         slot_def = self.ast.slots.get(slot_id)
+        if not slot_def:
+            raise ValueError(f"Termin '{slot_id}' nije definisan u AST-u")
 
-        if slot_def:
-            # Use defined number
-            num = slot_def.number
-        else:
-            # Fallback regex
-            match = re.search(r'\d+', slot_id)
-            num = int(match.group()) if match else 1
-
-        minutes_offset = (num - 1) * (self.slots_per_index * self.slot_duration)
-        if 'A' in slot_id: minutes_offset += self.slot_duration
-
+        # Svaki slot_number predstavlja jedan slot_duration interval od base_time
+        minutes_offset = (slot_def.number - 1) * self.slot_duration
         start_dt = self.base_time + timedelta(minutes=minutes_offset)
+
         return start_dt, self.slot_duration
 
     def _process_assignments(self):
+        """Obradjuje sve AssignmentNode-ove i kreira Event objekte."""
         uid_counter = 1
 
         for node in self.ast.assignments:
-            if not node.slots: continue
+            if not node.slots:
+                continue
 
-            # Resolve Entities
-            teachers = [self.model.people.get(t, Person(t, format_person_name(t))) for t in node.teachers]
-            rooms = [self.model.rooms.get(r, Room(r, r)) for r in node.rooms]
+            # Razrijesi entitete (sa fallback za nedefinirane)
+            teachers = [
+                self.model.people.get(t, Person(t, format_camel_case(t)))
+                for t in node.teachers
+            ]
+            rooms = [
+                self.model.rooms.get(r, Room(r, r))
+                for r in node.rooms
+            ]
 
-            # Resolve Groups
+            # Razrijesi grupe (preskoci "Svi")
             event_groups = []
             for sublist in node.groups:
                 for g_name in sublist:
-                    if g_name == "Svi": continue
+                    if g_name == "Svi":
+                        continue
                     g = self.model.groups.get(g_name, Group(g_name, g_name))
                     event_groups.append(g)
 
-            # Resolve Subject
+            # Razrijesi predmet (kreiraj implicitni ako ne postoji)
             subj = self.model.subjects.get(node.subject)
             if not subj:
-                # Implicit subject
-                l_type = DEFAULT_TYPES.get(node.type, LectureType(node.type, "Ostalo", 99))
-                subj = Subject(id=node.subject, name=format_person_name(node.subject), types={l_type})
+                l_type = self._resolve_type(node.type)
+                subj = Subject(
+                    id=node.subject,
+                    name=format_camel_case(node.subject),
+                    types={l_type},
+                )
 
-            l_type = DEFAULT_TYPES.get(node.type, LectureType(node.type, "Ostalo", 99))
+            l_type = self._resolve_type(node.type)
 
-            # Resolve Time (Start/End)
-            # Assuming contiguous slots
-            first_slot = node.slots[0]
-            last_slot = node.slots[-1]
+            # Razrijesi vrijeme iz slotova (od najranijeg do najkasnijeg)
+            slot_times = []
+            for slot_id in node.slots:
+                start_dt, duration = self._resolve_time(slot_id)
+                end_dt = start_dt + timedelta(minutes=duration)
+                slot_times.append((start_dt, end_dt))
 
-            start_t, _ = self._resolve_time(first_slot)
-            end_t_start, dur = self._resolve_time(last_slot)
-            end_t = end_t_start + timedelta(minutes=dur)
-
+            start_t = min(st[0] for st in slot_times)
+            end_t = max(st[1] for st in slot_times)
             start_str = start_t.strftime("%H:%M")
             end_str = end_t.strftime("%H:%M")
 
-            # Resolve Date
-            # Get Day Name from first slot definition
-            day_name = "Ponedjeljak" # Default
-            slot_def = self.ast.slots.get(first_slot)
-            if slot_def:
-                day_name = slot_def.day_name
-            elif len(node.slots) > 0 and node.slots[0] in self.ast.slots:
-                 # Should have been caught by slot_def check above if key matches
-                 pass
+            # Razrijesi dan iz prvog slota
+            first_slot_def = self.ast.slots.get(node.slots[0])
+            if not first_slot_def:
+                raise ValueError(f"Termin '{node.slots[0]}' nije definisan u AST-u")
+            day_name = first_slot_def.day_name
 
-            # If not found in slots, try to infer from AST context?
-            # Or assume Monday?
-            # Existing generator assumed "Ponedjeljak" if not found.
+            day_def = self.ast.days.get(day_name)
+            if not day_def:
+                raise ValueError(f"Dan '{day_name}' nije definisan u AST-u")
 
-            day_idx = self.day_map.get(day_name, 0)
+            # Indeks dana (0-based, Mon=0)
+            day_idx = day_def.number - 1
 
-            # Calculate first occurrence date
-            sem_start_weekday = self.semester_start.weekday() # Mon=0
-
-            # Days until first occurrence
+            # Datum prvog pojavljivanja u semestru
+            sem_start_weekday = self.semester_start.weekday()
             days_diff = (day_idx - sem_start_weekday + 7) % 7
             first_date = self.semester_start + timedelta(days=days_diff)
 
-            # Construct full datetimes
+            # Konstruisi kompletne datetime-ove
             start_dt = first_date.replace(hour=start_t.hour, minute=start_t.minute)
             end_dt = first_date.replace(hour=end_t.hour, minute=end_t.minute)
 
-            # Create Event
+            # Kreiraj Event
             ev = Event(
                 uid=f"EV-{uid_counter}",
                 subject=subj,
@@ -191,7 +216,7 @@ class ScheduleCompiler:
                 frequency="WEEKLY",
                 interval=node.recurrence_interval,
                 until_date=self.semester_end,
-                exdates=self.model.holidays
+                exdates=self.model.holidays,
             )
             self.model.events.append(ev)
             uid_counter += 1
